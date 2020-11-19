@@ -348,3 +348,6 @@ MigrationBackup/
 
 # Ionide (cross platform F# VS Code tools) working folder
 .ionide/
+
+# The folder that Visual Studio annoyingly creates thinking it has to do something with CMakeLists.txt
+/out/

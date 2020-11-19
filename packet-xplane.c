@@ -10,7 +10,7 @@
  */
 
  /*
-  * A dissector for UDP packets sent to+from Laminar Research's X-Plane Flight Simulator
+  * A dissector for UDP packets for Laminar Research's X-Plane Flight Simulator
   */
 
 #include <config.h>
