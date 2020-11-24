@@ -33,5 +33,6 @@ Developed and tested on Windows 10 and Microsoft Visual Studio 2019.
 Linux development and testing on Ubuntu 20.04.1 and Debian 10.6.
 
 ###### TODO:
+[ ] Add releases for Windows 3.4, Ubunut 3.2 and Debian 2.6 (Latest versions installed using apt).
 [ ] Use wireshark's expert mechanism instead of validate_packet() just returning 0.  
 [ ] Add descriptive lookups for DATA packets and use wmem_file_scope().
