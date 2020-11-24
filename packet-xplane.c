@@ -300,9 +300,11 @@ static int hf_xplane_vehx_roll = -1;
 
 #define xplane_HEADER_LENGTH 5
 
-#define xplane_UDP_PORT 49005
+#define xplane_UDP_LISTENER_PORT 49000
+#define xplane_UDP_SENDER_PORT 49005
 #define xplane_BECN_PORT 49707
-static guint xplane_pref_udp_port = xplane_UDP_PORT;
+static guint xplane_pref_udp_listener_port = xplane_UDP_LISTENER_PORT;
+static guint xplane_pref_udp_sender_port = xplane_UDP_SENDER_PORT;
 static guint xplane_pref_becn_port = xplane_BECN_PORT;
 
 static const value_string vals_Becn_HostID[] = {
@@ -417,8 +419,7 @@ static int dissect_xplane_acfn(tvbuff_t* tvb, packet_info* pinfo, proto_tree* tr
     proto_item_append_text(xplane_acfn_item, ", Length=%u bytes.", tvb_captured_length(tvb));
 
     proto_tree* xplane_acfn_tree = proto_item_add_subtree(xplane_acfn_item, ett_xplane_acfn);
-    proto_item* header_item = proto_tree_add_item(xplane_acfn_tree, hf_xplane_acfn_header, tvb, 0, 4, ENC_ASCII);
-    proto_item_append_text(header_item, ", Length=%u bytes.", tvb_captured_length(tvb));
+    proto_tree_add_item(xplane_acfn_tree, hf_xplane_acfn_header, tvb, 0, 4, ENC_ASCII);
 
     tvbuff_t* tvb_content = tvb_new_subset_length(tvb, xplane_HEADER_LENGTH, -1);
     proto_tree_add_item_ret_int(xplane_acfn_tree, hf_xplane_acfn_index, tvb_content, 0, 4, ENC_LITTLE_ENDIAN, &id);
@@ -472,7 +473,7 @@ static int dissect_xplane_alrt(tvbuff_t* tvb, packet_info* pinfo _U_, proto_tree
     proto_tree_add_item(xplane_alrt_tree, hf_xplane_alrt_header, tvb, 0, 4, ENC_ASCII);
 
     tvbuff_t* tvb_content = tvb_new_subset_length(tvb, xplane_HEADER_LENGTH, -1);
-    proto_tree_add_item(xplane_alrt_tree, hf_xplane_alrt_line1, tvb_content, 0,  240, ENC_ASCII);
+    proto_tree_add_item(xplane_alrt_tree, hf_xplane_alrt_line1, tvb_content, 0, 240, ENC_ASCII);
     proto_tree_add_item(xplane_alrt_tree, hf_xplane_alrt_line2, tvb_content, 240, 240, ENC_ASCII);
     proto_tree_add_item(xplane_alrt_tree, hf_xplane_alrt_line3, tvb_content, 480, 240, ENC_ASCII);
     proto_tree_add_item(xplane_alrt_tree, hf_xplane_alrt_line4, tvb_content, 720, 240, ENC_ASCII);
@@ -533,13 +534,13 @@ static int dissect_xplane_data(tvbuff_t* tvb, packet_info* pinfo, proto_tree* tr
     tvbuff_t* tvb_content = tvb_new_subset_length(tvb, xplane_HEADER_LENGTH, -1);
     guint recordCount = tvb_captured_length(tvb_content) / xplane_DATA_STRUCT_LENGTH;
 
+    col_append_fstr(pinfo->cinfo, COL_INFO, " Count=%u", recordCount);
+
     proto_item* xplane_data_item = proto_tree_add_item(tree, proto_xplane, tvb, 0, -1, ENC_NA);
-    proto_item_append_text(xplane_data_item, " Length=%u, Count=%u", tvb_captured_length(tvb), recordCount);;
+    proto_item_append_text(xplane_data_item, " Length=%u, Count=%u", tvb_captured_length(tvb), recordCount);
 
     proto_tree* xplane_data_tree = proto_item_add_subtree(xplane_data_item, ett_xplane_data);
     proto_tree_add_item(xplane_data_tree, hf_xplane_data_header, tvb, 0, 4, ENC_ASCII);
-
-    col_append_fstr(pinfo->cinfo, COL_INFO, " Count=%u", recordCount);
 
     for (guint32 i = 0; i < recordCount; i++)
     {
@@ -565,11 +566,10 @@ static int dissect_xplane_dcoc(tvbuff_t* tvb, packet_info* pinfo, proto_tree* tr
     guint recordCount = tvb_captured_length(tvb_content) / xplane_DATA_INDEX_LENGTH;
 
     proto_item* xplane_dcoc_item = proto_tree_add_item(tree, proto_xplane, tvb, 0, -1, ENC_NA);
-    proto_item_append_text(xplane_dcoc_item, " Length=%u", tvb_captured_length(tvb));
+    proto_item_append_text(xplane_dcoc_item, " Length=%u, Count=%u", tvb_captured_length(tvb), recordCount);
 
     proto_tree* xplane_dcoc_tree = proto_item_add_subtree(xplane_dcoc_item, ett_xplane_dcoc);
-    proto_item* xplane_header_item = proto_tree_add_item(xplane_dcoc_tree, hf_xplane_dcoc_header, tvb, 0, 4, ENC_ASCII);
-    proto_item_append_text(xplane_header_item, " count=%u", recordCount);
+    proto_tree_add_item(xplane_dcoc_tree, hf_xplane_dcoc_header, tvb, 0, 4, ENC_ASCII);
 
     for (guint32 i = 0; i < recordCount; i++)
         proto_tree_add_item(xplane_dcoc_tree, hf_xplane_dcoc_id, tvb_content, i * xplane_DATA_INDEX_LENGTH, xplane_DATA_INDEX_LENGTH, ENC_LITTLE_ENDIAN);
@@ -604,11 +604,10 @@ static int dissect_xplane_dsel(tvbuff_t* tvb, packet_info* pinfo, proto_tree* tr
     guint recordCount = tvb_captured_length(tvb_content) / xplane_DATA_INDEX_LENGTH;
 
     proto_item* xplane_dsel_item = proto_tree_add_item(tree, proto_xplane, tvb, 0, -1, ENC_NA);
-    proto_item_append_text(xplane_dsel_item, " Length=%u", tvb_captured_length(tvb));
+    proto_item_append_text(xplane_dsel_item, " Length=%u, Count=%u", tvb_captured_length(tvb), recordCount);
 
     proto_tree* xplane_dsel_tree = proto_item_add_subtree(xplane_dsel_item, ett_xplane_dsel);
-    proto_item* xplane_header_item = proto_tree_add_item(xplane_dsel_tree, hf_xplane_dsel_header, tvb, 0, 4, ENC_ASCII);
-    proto_item_append_text(xplane_header_item, " Count=%u", recordCount);
+    proto_tree_add_item(xplane_dsel_tree, hf_xplane_dsel_header, tvb, 0, 4, ENC_ASCII);
 
     for (guint32 i = 0; i < recordCount; i++)
         proto_tree_add_item(xplane_dsel_tree, hf_xplane_dsel_id, tvb_content, i * 4, 4, ENC_LITTLE_ENDIAN);
@@ -990,11 +989,10 @@ static int dissect_xplane_rref_out(tvbuff_t* tvb, packet_info* pinfo, proto_tree
     guint recordCount = (tvb_captured_length(tvb) - 5) / 8;
 
     proto_item* xplane_rref_item = proto_tree_add_item(tree, proto_xplane, tvb, 0, -1, ENC_NA);
-    proto_item_append_text(xplane_rref_item, " Length=%u", tvb_captured_length(tvb));
+    proto_item_append_text(xplane_rref_item, " Length=%u, Count=%u", tvb_captured_length(tvb), recordCount);
 
     proto_tree* xplane_rref_tree = proto_item_add_subtree(xplane_rref_item, ett_xplane_rref_out);
-    proto_item* xplane_header_item = proto_tree_add_item(xplane_rref_tree, hf_xplane_rref_out_header, tvb, 0, 4, ENC_ASCII);
-    proto_item_append_text(xplane_header_item, " Count=%d", recordCount);
+    proto_tree_add_item(xplane_rref_tree, hf_xplane_rref_out_header, tvb, 0, 4, ENC_ASCII);
 
     tvbuff_t* tvb_content = tvb_new_subset_length(tvb, xplane_HEADER_LENGTH, -1);
     for (guint32 i = 0; i < recordCount; i++)
@@ -1089,11 +1087,10 @@ static int dissect_xplane_ucoc(tvbuff_t* tvb, packet_info* pinfo _U_, proto_tree
     guint recordCount = tvb_captured_length(tvb_content) / 4;
 
     proto_item* xplane_ucoc_item = proto_tree_add_item(tree, proto_xplane, tvb, 0, -1, ENC_NA);
-    proto_item_append_text(xplane_ucoc_item, " Length=%u", tvb_captured_length(tvb));
+    proto_item_append_text(xplane_ucoc_item, " Length=%u, Count=%u", tvb_captured_length(tvb), recordCount);
 
     proto_tree* xplane_ucoc_tree = proto_item_add_subtree(xplane_ucoc_item, ett_xplane_ucoc);
-    proto_item* xplane_header_item = proto_tree_add_item(xplane_ucoc_tree, hf_xplane_ucoc_header, tvb, 0, 4, ENC_ASCII);
-    proto_item_append_text(xplane_header_item, " Count=%u", recordCount);
+    proto_tree_add_item(xplane_ucoc_tree, hf_xplane_ucoc_header, tvb, 0, 4, ENC_ASCII);
 
     for (guint32 i = 0; i < recordCount; i++)
     {
@@ -1110,11 +1107,10 @@ static int dissect_xplane_usel(tvbuff_t* tvb, packet_info* pinfo _U_, proto_tree
     guint recordCount = tvb_captured_length(tvb_content) / 4;
 
     proto_item* xplane_usel_item = proto_tree_add_item(tree, proto_xplane, tvb, 0, -1, ENC_NA);
-    proto_item_append_text(xplane_usel_item, " Length=%u", tvb_captured_length(tvb));
+    proto_item_append_text(xplane_usel_item, " Length=%u, Count=%u", tvb_captured_length(tvb), recordCount);
 
     proto_tree* xplane_usel_tree = proto_item_add_subtree(xplane_usel_item, ett_xplane_usel);
-    proto_item* xplane_header_item = proto_tree_add_item(xplane_usel_tree, hf_xplane_usel_header, tvb, 0, 4, ENC_ASCII);
-    proto_item_append_text(xplane_header_item, " Count=%u", recordCount);
+    proto_tree_add_item(xplane_usel_tree, hf_xplane_usel_header, tvb, 0, 4, ENC_ASCII);
 
     for (guint32 i = 0; i < recordCount; i++)
     {
@@ -1658,7 +1654,8 @@ void proto_register_xplane(void)
     proto_register_field_array(proto_xplane, hf_xplane_vehx, array_length(hf_xplane_vehx));
 
     module_t* xplane_udp_prefs_module = prefs_register_protocol(proto_xplane, proto_reg_handoff_xplane);
-    prefs_register_uint_preference(xplane_udp_prefs_module, "listenerport", "X-Plane UDP Listener Port", "The Port to listen on for X-Plane packets if other than the default", 10, &xplane_pref_udp_port);
+    prefs_register_uint_preference(xplane_udp_prefs_module, "senderport", "X-Plane UDP Sender Port", "The port out app sends to X-Plane from", 10, &xplane_pref_udp_sender_port);
+    prefs_register_uint_preference(xplane_udp_prefs_module, "listenerport", "X-Plane UDP Listener Port", "The Destination Port to listen on for X-Plane packets if other than the default", 10, &xplane_pref_udp_listener_port);
     prefs_register_uint_preference(xplane_udp_prefs_module, "beaconport", "X-Plane UDP Beacon Port", "The Port to listen on for BECN packet if other than the default", 10, &xplane_pref_becn_port);
 }
 
@@ -1668,7 +1665,8 @@ void proto_reg_handoff_xplane(void)
     static dissector_handle_t xplane_becn_handle;
     static dissector_handle_t xplane_udp_handle;
     static int current_becn_port;
-    static int current_udp_port;
+    static int current_udp_listener_port;
+    static int current_udp_sender_port;
 
     if (!initialized)
     {
@@ -1678,13 +1676,16 @@ void proto_reg_handoff_xplane(void)
     else
     {
         dissector_delete_uint("udp.port", current_becn_port, xplane_becn_handle);
-        dissector_delete_uint("udp.port", current_udp_port, xplane_udp_handle);
+        dissector_delete_uint("udp.port", current_udp_listener_port, xplane_udp_handle);
+        dissector_delete_uint("udp.port", current_udp_sender_port, xplane_udp_handle);
     }
 
-    current_udp_port = xplane_pref_udp_port;
+    current_udp_listener_port = xplane_pref_udp_listener_port;
+    current_udp_sender_port = xplane_pref_udp_sender_port;
     current_becn_port = xplane_pref_becn_port;
 
-    dissector_add_uint("udp.port", current_udp_port, xplane_udp_handle);
+    dissector_add_uint("udp.port", current_udp_listener_port, xplane_udp_handle);
+    dissector_add_uint("udp.port", current_udp_sender_port, xplane_udp_handle);
     dissector_add_uint("udp.port", current_becn_port, xplane_udp_handle);
 }
 
