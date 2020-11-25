@@ -30,9 +30,9 @@ Restart Wireshark if already running.
 You can check wireshark has loaded the plugin via Menu->Help->About Wireshark->Plugins Tab. The name will be *xplane* with a type of *dissector*.  
 
 Developed and tested on Windows 10 and Microsoft Visual Studio 2019.  
-Linux development and testing on Ubuntu 20.04.1 and Debian 10.6.
+Linux testing on Ubuntu 20.04.1  
 
 ###### TODO:
-[ ] Add releases for Windows 3.4, Ubunut 3.2 and Debian 2.6 (Latest versions installed using apt).  
+[X] Add releases for Windows 3.4, Ubuntu 3.2.  
 [ ] Use wireshark's expert mechanism instead of validate_packet() just returning 0.  
 [ ] Add descriptive lookups for DATA packets and use wmem_file_scope().
