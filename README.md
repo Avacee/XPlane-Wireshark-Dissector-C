@@ -24,14 +24,14 @@ For more information on writing wireshark dissectors refer to the wireshark\doc\
 
 ### Just give me a .dll/.so to use:
 Download the release that is appropriate for your version of Wireshark.  
-To find your version goto Menu->Help->About Wireshark->Wireshark Tab and check the topmost line. Only the first 2 numbers (Major and Minor) are important. e.g. 3.4.  
+To find your version goto _Menu->Help->About Wireshark->Wireshark_ and check the topmost line. Only the first 2 numbers (Major and Minor) are important. e.g. 3.4.  
 Copy the plugin into one of the following folders:
-  * Wireshark's *Personal_Plugins_Folder*\epan\
-  * Wireshark's *Global_Plugins_Folder*\epan\ 
-  * Your wireshark\plugins\*version*\epan\ folder.
+  * Wireshark's _Personal_Plugins_Folder_\epan\
+  * Wireshark's _Global_Plugins_Folder_\epan\ 
+  * Your wireshark\plugins\ _version_ \epan\ folder.
 
 I recommend the Personal_Plugins_Folder as this is not cleared by wireshark updates.  
-The X_Plugins_Folders can be found by Menu -> Help -> About Wireshark -> Folders -> Personal Plugins
+The X_Plugins_Folders can be found by _Menu -> Help -> About Wireshark -> Folders -> Personal Plugins_
 
 Restart Wireshark if already running.   
 You can check wireshark has loaded the plugin via Menu->Help->About Wireshark->Plugins Tab. The name will be *xplane* with a type of *dissector*.  
