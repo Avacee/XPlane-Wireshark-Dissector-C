@@ -1,7 +1,7 @@
 # XPlane-Wireshark-Dissector-C
-## A Wireshark Dissector for Laminar Research's X-Plane Flight Simulator
+## A Wireshark Dissector for Laminar Research's X-Plane Flight Simulator.
 
-#### How to build this dissector into your own Wireshark
+### How to build this dissector into your own Wireshark.
 
 To build Wireshark refer to these resources:
 * Windows: https://www.wireshark.org/docs/wsdg_html_chunked/ChSetupWin32.html
@@ -22,7 +22,7 @@ There are 2 options for integrating an X-Plane dissector into Wireshark:
 
 For more information on writing wireshark dissectors refer to the wireshark\doc\README.subject files.
 
-### Just give me a .dll/.so to use:
+### Just give me a .dll/.so to use.
 Download the release that is appropriate for your version of Wireshark.  
 To find your version goto _Menu->Help->About Wireshark->Wireshark_ and check the topmost line. Only the first 2 numbers (Major and Minor) are important. e.g. 3.4.  
 Copy the plugin into one of the following folders:
@@ -31,15 +31,22 @@ Copy the plugin into one of the following folders:
   * Your wireshark\plugins\ _version_ \epan\ folder.
 
 I recommend the Personal_Plugins_Folder as this is not cleared by wireshark updates.  
-The X_Plugins_Folders can be found by _Menu -> Help -> About Wireshark -> Folders -> Personal Plugins_
+The folders can be found via _Menu -> Help -> About Wireshark -> Folders -> Personal Plugins_
 
 Restart Wireshark if already running.   
-You can check wireshark has loaded the plugin via Menu->Help->About Wireshark->Plugins Tab. The name will be *xplane* with a type of *dissector*.  
+You can check Wireshark has loaded the plugin via Menu->Help->About Wireshark->Plugins Tab. The name will be *xplane* with a type of *dissector*.  
 
 Developed and tested on Windows 10+11 and Microsoft Visual Studio 2019/2022-RC1  
 Linux testing on Ubuntu 20.04.1 and WSL2 (Ubuntu and Debian)
 
+### Usage.
+The proto declaration is "xplane" and the protofields have been added using the format xplane.$header$.$element$".  
+So to view only BECN packets the display filter will be "xplane.becn"  
+Conversely to see all packet except BECN (as there are so many) filter on "xplane && !xplane.becn"  
+To only see those DATA packets with an index of 0 (Frame Rate Info) filter on "xplane.data.index == 0"  
+
 ###### TODO:
 [X] Add releases for Windows 3.4, Ubuntu 3.2.  
 [X] Use wireshark's expert mechanism instead of validate_packet() just returning 0.  
-[ ] Add descriptive lookups for DATA packets and use wmem_file_scope().
+[ ] Add descriptive lookups for DATA packets.  
+[ ] Track RREF's.
