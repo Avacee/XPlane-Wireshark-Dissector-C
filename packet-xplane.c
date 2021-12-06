@@ -1836,23 +1836,23 @@ void proto_register_xplane(void)
 {
     static hf_register_info hf_xplane_acfn[] =
     {
-        { &hf_xplane_acfn_header,   { "Header",     "xplane.acfn",          FT_STRING,     STR_ASCII,  NULL,   0,  "ACFN - Load an AI aircraft into the select slot.",  HFILL}},
+        { &hf_xplane_acfn_header,   { "Header",     "xplane.acfn",          FT_STRING,     BASE_NONE,  NULL,   0,  "ACFN - Load an AI aircraft into the select slot.",  HFILL}},
         { &hf_xplane_acfn_header_0, { "Header",     "xplane.acfn_0",        FT_BYTES,      BASE_NONE,  NULL,   0,  "ACFN Header Terminator.",  HFILL}},
         { &hf_xplane_acfn_index,    { "Index",      "xplane.acfn.index",    FT_INT32,      BASE_DEC,   NULL,   0,  "Aircraft Index (0=Own Plane, 1->19 = AI Plane).",        HFILL}},
-        { &hf_xplane_acfn_path,     { "Path",       "xplane.acfn.path",     FT_STRINGZPAD, STR_ASCII,  NULL,   0,  "The .acf filename relative to X-Plane's home folder. Use Unix style '/' directory seperators.",         HFILL}},
+        { &hf_xplane_acfn_path,     { "Path",       "xplane.acfn.path",     FT_STRINGZPAD, BASE_NONE,  NULL,   0,  "The .acf filename relative to X-Plane's home folder. Use Unix style '/' directory seperators.",         HFILL}},
         { &hf_xplane_acfn_padding,  { "Padding",    "xplane.acfn.padding",  FT_BYTES,      BASE_NONE,  NULL,   0,  "2 bytes of padding",      HFILL}},
         { &hf_xplane_acfn_livery,   { "Livery",     "xplane.acfn.livery",   FT_INT32,      BASE_DEC,   NULL,   0,  "Livery ID. 0->x in alphabetical order for the liveries listed in the aircraft folder. Adding a new livery may change the order.",    HFILL}}
     };
     static hf_register_info hf_xplane_acpr[] =
     {
-        { &hf_xplane_acpr_header,           { "Header",             "xplane.acpr",                  FT_STRINGZ,    STR_ASCII,  NULL,   0,  "ACPR - Load and Position an AI into the selected slot.",      HFILL}},
+        { &hf_xplane_acpr_header,           { "Header",             "xplane.acpr",                  FT_STRINGZ,    BASE_NONE,  NULL,   0,  "ACPR - Load and Position an AI into the selected slot.",      HFILL}},
         { &hf_xplane_acpr_index,            { "Index",              "xplane.acpr.index",            FT_INT32,      BASE_DEC,   NULL,   0,  "Aircraft Index (0=Own Plane, 1->19 = AI Plane).",            HFILL}},
-        { &hf_xplane_acpr_path,             { "Path",               "xplane.acpr.path",             FT_STRINGZPAD, STR_ASCII,  NULL,   0,  "The path relative to X-Plane's home folder. Use Unix style / directory seperators.",             HFILL}},
+        { &hf_xplane_acpr_path,             { "Path",               "xplane.acpr.path",             FT_STRINGZPAD, BASE_NONE,  NULL,   0,  "The path relative to X-Plane's home folder. Use Unix style / directory seperators.",             HFILL}},
         { &hf_xplane_acpr_padding,          { "Padding",            "xplane.acpr.padding",          FT_BYTES,      BASE_NONE,  NULL,   0,  "2 bytes of padding.",          HFILL}},
         { &hf_xplane_acpr_livery,           { "Livery",             "xplane.acpr.livery",           FT_INT32,      BASE_DEC,   NULL,   0,  "Livery ID. 0->n in alphabetical order for the liveries listed in the aircraft folder. Adding a new livery may change the order.",    HFILL}},
         { &hf_xplane_acpr_starttype,        { "Start Type",         "xplane.acpr.starttype",        FT_INT32,      BASE_DEC,   VALS(xplane_vals_StartType),   0,  "The Start type such as runway, LatLong, etc.",       HFILL}},
         { &hf_xplane_acpr_aircraftindex,    { "Aircraft Index",     "xplane.acpr.aircraftindex",    FT_INT32,      BASE_DEC,   NULL,   0,  "Aircraft Index (unused - see the Index entry).",   HFILL}},
-        { &hf_xplane_acpr_ICAO,             { "ICAO",               "xplane.acpr.ICAO",             FT_STRINGZPAD, STR_ASCII,  NULL,   0,  "Airport / NavAid code to place the aircraft at. Note: Max 7 chars as the packet's struct is 8 chars including the ending '\0'.",             HFILL}},
+        { &hf_xplane_acpr_ICAO,             { "ICAO",               "xplane.acpr.ICAO",             FT_STRINGZPAD, BASE_NONE,  NULL,   0,  "Airport / NavAid code to place the aircraft at. Note: Max 7 chars as the packet's struct is 8 chars including the ending '\0'.",             HFILL}},
         { &hf_xplane_acpr_runwayindex,      { "Runway Index",       "xplane.acpr.runwayindex",      FT_INT32,      BASE_DEC,   NULL,   0,  "Runway Index. 0 based on the order listed in the apt.dat file. Note 09L/27R will be one runway. See Runway direction for which end to start from.",     HFILL}},
         { &hf_xplane_acpr_runwaydirection,  { "Runway Direction",   "xplane.acpr.runwaydirection",  FT_INT32,      BASE_DEC,   NULL,   0,  "Runway Direction. 0 (Normal) or 1 (Reversed). So for 09L/27R use 1 for 27R. For a Helipad this reverses the helipad's heading.", HFILL}},
         { &hf_xplane_acpr_latitude,         { "Latitude",           "xplane.acpr.latitude",         FT_DOUBLE,     BASE_NONE,  NULL,   0,  "Latitude - Ignored if the Start Type is not a LatLong.",         HFILL}},
@@ -1863,32 +1863,32 @@ void proto_register_xplane(void)
     };
     static hf_register_info hf_xplane_alrt[] =
     {
-        { &hf_xplane_alrt_header,   { "Header",         "xplane.alrt",          FT_STRINGZ,    STR_ASCII,  NULL,   0,  "ALRT - Display on Alert Message in X-Plane",   HFILL}},
-        { &hf_xplane_alrt_line1,    { "Line 1",         "xplane.alrt.line1",    FT_STRINGZPAD, STR_ASCII,  NULL,   0,  "The first line to display in the alert.",      HFILL}},
-        { &hf_xplane_alrt_line2,    { "Line 2",         "xplane.alrt.line2",    FT_STRINGZPAD, STR_ASCII,  NULL,   0,  "The second line to display in the alert.",     HFILL}},
-        { &hf_xplane_alrt_line3,    { "Line 3",         "xplane.alrt.line3",    FT_STRINGZPAD, STR_ASCII,  NULL,   0,  "The third line to display in the alert.",      HFILL}},
-        { &hf_xplane_alrt_line4,    { "Line 4",         "xplane.alrt.line4",    FT_STRINGZPAD, STR_ASCII,  NULL,   0,  "The fourth line to display in the alert.",     HFILL}}
+        { &hf_xplane_alrt_header,   { "Header",         "xplane.alrt",          FT_STRINGZ,    BASE_NONE,  NULL,   0,  "ALRT - Display on Alert Message in X-Plane",   HFILL}},
+        { &hf_xplane_alrt_line1,    { "Line 1",         "xplane.alrt.line1",    FT_STRINGZPAD, BASE_NONE,  NULL,   0,  "The first line to display in the alert.",      HFILL}},
+        { &hf_xplane_alrt_line2,    { "Line 2",         "xplane.alrt.line2",    FT_STRINGZPAD, BASE_NONE,  NULL,   0,  "The second line to display in the alert.",     HFILL}},
+        { &hf_xplane_alrt_line3,    { "Line 3",         "xplane.alrt.line3",    FT_STRINGZPAD, BASE_NONE,  NULL,   0,  "The third line to display in the alert.",      HFILL}},
+        { &hf_xplane_alrt_line4,    { "Line 4",         "xplane.alrt.line4",    FT_STRINGZPAD, BASE_NONE,  NULL,   0,  "The fourth line to display in the alert.",     HFILL}}
     };
     static hf_register_info hf_xplane_becn[] =
     {
-        { &hf_xplane_becn_header,   { "Header",         "xplane.becn",            FT_STRINGZ, STR_ASCII,  NULL,   0,  "Beacon Header",                                          HFILL}},
+        { &hf_xplane_becn_header,   { "Header",         "xplane.becn",            FT_STRINGZ, BASE_NONE,  NULL,   0,  "Beacon Header",                                          HFILL}},
         { &hf_xplane_becn_major,    { "Major Version",  "xplane.becn.major",      FT_UINT8,   BASE_DEC,   NULL,   0,  "The Major Version for this BECN packet.",                HFILL}},
         { &hf_xplane_becn_minor,    { "Minor Version",  "xplane.becn.minor",      FT_UINT8,   BASE_DEC,   NULL,   0,  "The Major Version for this BECN packet.",                HFILL}},
         { &hf_xplane_becn_hostid,   { "Host ID",        "xplane.becn.hostid",     FT_INT32,   BASE_DEC,   VALS(xplane_vals_Becn_HostID),   0,  "The application type. 1=X-Plane, 2=Planemaker.",          HFILL}},
         { &hf_xplane_becn_version,  { "Version",        "xplane.becn.version",    FT_INT32,   BASE_DEC,   NULL,   0,  "Version Number xxyyzz xx=Major, yy=Minor, zz=Release",   HFILL}},
         { &hf_xplane_becn_role,     { "Role",           "xplane.becn.role",       FT_UINT32,  BASE_DEC,   VALS(xplane_vals_MachineRole), 0,"Role the remote computer is undertaking.", HFILL}},
         { &hf_xplane_becn_port,     { "Port",           "xplane.becn.port",       FT_UINT32,  BASE_DEC,   NULL,   0,  "Port the remote computer is listening on for UDP connections.", HFILL}},
-        { &hf_xplane_becn_name,     { "Computer name",  "xplane.becn.name",       FT_STRINGZ, STR_ASCII,  NULL,   0,  "Remote Computer Name.",                                  HFILL}},
+        { &hf_xplane_becn_name,     { "Computer name",  "xplane.becn.name",       FT_STRINGZ, BASE_NONE,  NULL,   0,  "Remote Computer Name.",                                  HFILL}},
         { &hf_xplane_becn_raknetport,  { "New Port",       "xplane.becn.raknetport", FT_UINT16,  BASE_DEC,   NULL,   0,  "Raknet port the computer listens on for multiplayer connections.", HFILL}}
     };
     static hf_register_info hf_xplane_cmnd[] =
     {
-        { &hf_xplane_cmnd_header,   { "Header",     "xplane.cmnd",          FT_STRINGZ,    STR_ASCII,  NULL,   0,  "CMND Header",  HFILL}},
-        { &hf_xplane_cmnd_command,  { "Command",    "xplane.cmnd.command",  FT_STRINGZPAD, STR_ASCII,  NULL,   0,  "The command to be executed", HFILL}}
+        { &hf_xplane_cmnd_header,   { "Header",     "xplane.cmnd",          FT_STRINGZ,    BASE_NONE,  NULL,   0,  "CMND Header",  HFILL}},
+        { &hf_xplane_cmnd_command,  { "Command",    "xplane.cmnd.command",  FT_STRINGZPAD, BASE_NONE,  NULL,   0,  "The command to be executed", HFILL}}
     };
     static hf_register_info hf_xplane_data[] =
     {
-        { &hf_xplane_data_header,   { "Header", "xplane.data",          FT_STRINGZ, STR_ASCII,  NULL,   0,  "DATA Header",  HFILL}},
+        { &hf_xplane_data_header,   { "Header", "xplane.data",          FT_STRINGZ, BASE_NONE,  NULL,   0,  "DATA Header",  HFILL}},
         { &hf_xplane_data_index,    { "Index",  "xplane.data.index",    FT_INT32,   BASE_DEC,   NULL,   0,  "DATA Index",   HFILL}},
         { &hf_xplane_data_a,        { "A",      "xplane.data.a",        FT_FLOAT,   BASE_NONE,  NULL,   0,  "Item A",       HFILL}},
         { &hf_xplane_data_b,        { "B",      "xplane.data.b",        FT_FLOAT,   BASE_NONE,  NULL,   0,  "Item B",       HFILL}},
@@ -1901,33 +1901,33 @@ void proto_register_xplane(void)
     };
     static hf_register_info hf_xplane_dcoc[] =
     {
-        { &hf_xplane_dcoc_header,   { "Header", "xplane.dcoc",      FT_STRINGZ, STR_ASCII,  NULL,   0,  "DCOC Header",  HFILL}},
+        { &hf_xplane_dcoc_header,   { "Header", "xplane.dcoc",      FT_STRINGZ, BASE_NONE,  NULL,   0,  "DCOC Header",  HFILL}},
         { &hf_xplane_dcoc_id,       { "Id",     "xplane.dcoc.id",   FT_INT32,   BASE_DEC,   NULL,   0,  "A Data row id.",      HFILL}}
     };
     static hf_register_info hf_xplane_dref[] =
     {
-        { &hf_xplane_dref_header,   { "Header",     "xplane.dref",          FT_STRINGZ,    STR_ASCII,  NULL,   0,  "DREF Header",  HFILL}},
+        { &hf_xplane_dref_header,   { "Header",     "xplane.dref",          FT_STRINGZ,    BASE_NONE,  NULL,   0,  "DREF Header",  HFILL}},
         { &hf_xplane_dref_value,    { "Value",      "xplane.dref.value",    FT_FLOAT,      BASE_NONE,  NULL,   0,  "The value to set the dataref to.",        HFILL}},
-        { &hf_xplane_dref_dataref,  { "Dataref",    "xplane.dref.dataref",  FT_STRINGZPAD, STR_ASCII,  NULL,   0,  "The dataref to be set.",      HFILL}}
+        { &hf_xplane_dref_dataref,  { "Dataref",    "xplane.dref.dataref",  FT_STRINGZPAD, BASE_NONE,  NULL,   0,  "The dataref to be set.",      HFILL}}
     };
     static hf_register_info hf_xplane_dsel[] =
     {
-        { &hf_xplane_dsel_header,   { "Header", "xplane.dsel",      FT_STRINGZ, STR_ASCII,  NULL,   0,  "DSEL Header",  HFILL}},
+        { &hf_xplane_dsel_header,   { "Header", "xplane.dsel",      FT_STRINGZ, BASE_NONE,  NULL,   0,  "DSEL Header",  HFILL}},
         { &hf_xplane_dsel_id,       { "Id",     "xplane.dsel.id",   FT_INT32,   BASE_DEC,   NULL,   0,  "A Data row id",      HFILL}}
     };
     static hf_register_info hf_xplane_fail[] =
     {
-        { &hf_xplane_fail_header,   { "Header", "xplane.fail",      FT_STRINGZ, STR_ASCII,  NULL,   0,  "FAIL Header",  HFILL}},
-        { &hf_xplane_fail_id,       { "Id",     "xplane.fail.id",   FT_STRINGZ, STR_ASCII,  NULL,   0,  "The id of the Plane System to fail.",      HFILL}}
+        { &hf_xplane_fail_header,   { "Header", "xplane.fail",      FT_STRINGZ, BASE_NONE,  NULL,   0,  "FAIL Header",  HFILL}},
+        { &hf_xplane_fail_id,       { "Id",     "xplane.fail.id",   FT_STRINGZ, BASE_NONE,  NULL,   0,  "The id of the Plane System to fail.",      HFILL}}
     };
     static hf_register_info hf_xplane_flir_in[] =
     {
-        { &hf_xplane_flir_in_header,        { "Header",         "xplane.flir",              FT_STRINGZ, STR_ASCII, NULL,   0,  "FLIR Header (in)",  HFILL}},
-        { &hf_xplane_flir_in_framerate,     { "Frame Rate",     "xplane.flir.framerate",    FT_STRINGZ, STR_ASCII, NULL,   0,  "The requested Frame Rate for the returned images.",   HFILL}}
+        { &hf_xplane_flir_in_header,        { "Header",         "xplane.flir",              FT_STRINGZ, BASE_NONE, NULL,   0,  "FLIR Header (in)",  HFILL}},
+        { &hf_xplane_flir_in_framerate,     { "Frame Rate",     "xplane.flir.framerate",    FT_STRINGZ, BASE_NONE, NULL,   0,  "The requested Frame Rate for the returned images.",   HFILL}}
     };
     static hf_register_info hf_xplane_flir_out[] =
     {
-        { &hf_xplane_flir_out_header,       { "Header",         "xplane.flir",              FT_STRINGZ, STR_ASCII,  NULL,   0,  "FLIR Header (out)",    HFILL}},
+        { &hf_xplane_flir_out_header,       { "Header",         "xplane.flir",              FT_STRINGZ, BASE_NONE,  NULL,   0,  "FLIR Header (out)",    HFILL}},
         { &hf_xplane_flir_out_height,       { "Height",         "xplane.flir.height",       FT_INT16, BASE_DEC,     NULL,   0,  "Image Height",         HFILL}},
         { &hf_xplane_flir_out_width,        { "Width",          "xplane.flir.width",        FT_INT16, BASE_DEC,     NULL,   0,  "Image Width",          HFILL}},
         { &hf_xplane_flir_out_frameindex,   { "Frame Index",    "xplane.flir.frameindex",   FT_UINT8, BASE_DEC,     NULL,   0,  "The index within this frame.",          HFILL}},
@@ -1936,41 +1936,41 @@ void proto_register_xplane(void)
     };
     static hf_register_info hf_xplane_ise4[] =
     {
-        { &hf_xplane_ise4_header,       { "Header",         "xplane.ise4",              FT_STRINGZ,     STR_ASCII,  NULL,   0,  "ISE4 Header",  HFILL}},
+        { &hf_xplane_ise4_header,       { "Header",         "xplane.ise4",              FT_STRINGZ,     BASE_NONE,  NULL,   0,  "ISE4 Header",  HFILL}},
         { &hf_xplane_ise4_machinetype,  { "Machine Type",   "xplane.ise4.machinetype",  FT_INT32,       BASE_DEC,   VALS(xplane_vals_ISEx_MachineType),   0,  "The network option for this packet", HFILL}},
-        { &hf_xplane_ise4_address,      { "Address",        "xplane.ise4.address",      FT_STRINGZPAD,  STR_ASCII,  NULL,   0,  "The address to set.",      HFILL}},
-        { &hf_xplane_ise4_port,         { "Port",           "xplane.ise4.port",         FT_STRINGZPAD,  STR_ASCII,  NULL,   0,  "The port to set.",         HFILL}},
+        { &hf_xplane_ise4_address,      { "Address",        "xplane.ise4.address",      FT_STRINGZPAD,  BASE_NONE,  NULL,   0,  "The address to set.",      HFILL}},
+        { &hf_xplane_ise4_port,         { "Port",           "xplane.ise4.port",         FT_STRINGZPAD,  BASE_NONE,  NULL,   0,  "The port to set.",         HFILL}},
         { &hf_xplane_ise4_enabled,      { "Enabled",        "xplane.ise4.enabled",      FT_INT32,       BASE_DEC,   NULL,   0,  "Enabled (0=false, 1=true).",      HFILL}}
     };
     static hf_register_info hf_xplane_ise6[] =
     {
-        { &hf_xplane_ise6_header,       { "Header",         "xplane.ise6",              FT_STRINGZ,     STR_ASCII,  NULL,   0,  "ISE6 Header",  HFILL}},
+        { &hf_xplane_ise6_header,       { "Header",         "xplane.ise6",              FT_STRINGZ,     BASE_NONE,  NULL,   0,  "ISE6 Header",  HFILL}},
         { &hf_xplane_ise6_machinetype,  { "Machine Type",   "xplane.ise6.machinetype",  FT_INT32,       BASE_DEC,   VALS(xplane_vals_ISEx_MachineType),   0,  "The network option for this packet", HFILL}},
-        { &hf_xplane_ise6_address,      { "Address",        "xplane.ise6.address",      FT_STRINGZPAD,  STR_ASCII,  NULL,   0,  "The address to set.",      HFILL}},
-        { &hf_xplane_ise6_port,         { "Port",           "xplane.ise6.port",         FT_STRINGZPAD,  STR_ASCII,  NULL,   0,  "The port to set.",         HFILL}},
+        { &hf_xplane_ise6_address,      { "Address",        "xplane.ise6.address",      FT_STRINGZPAD,  BASE_NONE,  NULL,   0,  "The address to set.",      HFILL}},
+        { &hf_xplane_ise6_port,         { "Port",           "xplane.ise6.port",         FT_STRINGZPAD,  BASE_NONE,  NULL,   0,  "The port to set.",         HFILL}},
         { &hf_xplane_ise6_enabled,      { "Enabled",        "xplane.ise6.enabled",      FT_INT32,       BASE_DEC,   NULL,   0,  "Enabled (0=false, 1=true).",      HFILL}}
     };
     static hf_register_info hf_xplane_lsnd[] =
     {
-        { &hf_xplane_lsnd_header,   { "Header",     "xplane.lsnd",          FT_STRINGZ,     STR_ASCII,  NULL,   0,  "LSND Header",  HFILL}},
+        { &hf_xplane_lsnd_header,   { "Header",     "xplane.lsnd",          FT_STRINGZ,     BASE_NONE,  NULL,   0,  "LSND Header",  HFILL}},
         { &hf_xplane_lsnd_index,    { "Index",      "xplane.lsnd.index",    FT_INT32,       BASE_DEC,   NULL,   0,  "Index (0->4)",        HFILL}},
         { &hf_xplane_lsnd_speed,    { "Speed",      "xplane.lsnd.speed",    FT_FLOAT,       BASE_NONE,  NULL,   0,  "Relative Speed (0->1)",        HFILL}},
         { &hf_xplane_lsnd_volume,   { "Volume",     "xplane.lsnd.volume",   FT_FLOAT,       BASE_NONE,  NULL,   0,  "Relative Volume (0->1)",       HFILL}},
-        { &hf_xplane_lsnd_filename, { "Filename",   "xplane.lsnd.filename", FT_STRINGZPAD,  STR_ASCII,  NULL,   0,  "Relative Filename from the X-Plane home directory. Use Unix-style / seperators.",     HFILL}}
+        { &hf_xplane_lsnd_filename, { "Filename",   "xplane.lsnd.filename", FT_STRINGZPAD,  BASE_NONE,  NULL,   0,  "Relative Filename from the X-Plane home directory. Use Unix-style / seperators.",     HFILL}}
     };
     static hf_register_info hf_xplane_nfal[] =
     {
-        { &hf_xplane_nfal_header,       { "Header",         "xplane.nfal",      FT_STRINGZ, STR_ASCII,  NULL,   0,  "NFAL Header",  HFILL}},
-        { &hf_xplane_nfal_navaidcode,   { "Navaid Code",    "xplane.nfal.id",   FT_STRINGZ, STR_ASCII,  NULL,   0,  "The NavAid to fail.", HFILL}},
+        { &hf_xplane_nfal_header,       { "Header",         "xplane.nfal",      FT_STRINGZ, BASE_NONE,  NULL,   0,  "NFAL Header",  HFILL}},
+        { &hf_xplane_nfal_navaidcode,   { "Navaid Code",    "xplane.nfal.id",   FT_STRINGZ, BASE_NONE,  NULL,   0,  "The NavAid to fail.", HFILL}},
     };
     static hf_register_info hf_xplane_nrec[] =
     {
-        { &hf_xplane_nrec_header,       { "Header",         "xplane.nrec",      FT_STRINGZ, STR_ASCII,  NULL,   0,  "NREC Header",  HFILL}},
-        { &hf_xplane_nrec_navaidcode,   { "Navaid Code",    "xplane.nrec.id",   FT_STRINGZ, STR_ASCII,  NULL,   0,  "The NavAid to recover.", HFILL}},
+        { &hf_xplane_nrec_header,       { "Header",         "xplane.nrec",      FT_STRINGZ, BASE_NONE,  NULL,   0,  "NREC Header",  HFILL}},
+        { &hf_xplane_nrec_navaidcode,   { "Navaid Code",    "xplane.nrec.id",   FT_STRINGZ, BASE_NONE,  NULL,   0,  "The NavAid to recover.", HFILL}},
     };
     static hf_register_info hf_xplane_objl[] =
     {
-        { &hf_xplane_objl_header,       { "Header",     "xplane.objl",              FT_STRINGZ, STR_ASCII,   NULL,   0,  "OBJL Header",  HFILL}},
+        { &hf_xplane_objl_header,       { "Header",     "xplane.objl",              FT_STRINGZ, BASE_NONE,   NULL,   0,  "OBJL Header",  HFILL}},
         { &hf_xplane_objl_index,        { "Index",      "xplane.objl.index",        FT_INT32,   BASE_DEC,    NULL,   0,  "The index assigned to this object (see OBJN).",        HFILL}},
         { &hf_xplane_objl_padding1,     { "Padding",    "xplane.objl.padding1",     FT_BYTES,   BASE_NONE,   NULL,   0,  "4 bytes of padding",    HFILL}},
         { &hf_xplane_objl_latitude,     { "Latitude",   "xplane.objl.latitude",     FT_DOUBLE,  BASE_NONE,   NULL,   0,  "Latitude of the object centre",     HFILL}},
@@ -1985,16 +1985,16 @@ void proto_register_xplane(void)
     };
     static hf_register_info hf_xplane_objn[] =
     {
-        { &hf_xplane_objn_header,       { "Header",     "xplane.objn",              FT_STRINGZ,     STR_ASCII,  NULL,   0,  "OBJN Header",  HFILL}},
+        { &hf_xplane_objn_header,       { "Header",     "xplane.objn",              FT_STRINGZ,     BASE_NONE,  NULL,   0,  "OBJN Header",  HFILL}},
         { &hf_xplane_objn_index,        { "Index",      "xplane.objn.index",        FT_INT32,       BASE_DEC,   NULL,   0,  "Index to assign to this object (See OBJL).",        HFILL}},
-        { &hf_xplane_objn_filename,     { "Filename",   "xplane.objn.filename",     FT_STRINGZPAD,  STR_ASCII,  NULL,   0,  "OBJ7 filename relative to X-Plane hole folder",     HFILL}},
+        { &hf_xplane_objn_filename,     { "Filename",   "xplane.objn.filename",     FT_STRINGZPAD,  BASE_NONE,  NULL,   0,  "OBJ7 filename relative to X-Plane hole folder",     HFILL}},
     };
     static hf_register_info hf_xplane_prel[] =
     {
-        { &hf_xplane_prel_header,           { "Header",             "xplane.prel",                  FT_STRINGZ, STR_ASCII,  NULL,   0,  "PREL Header",      HFILL}},
+        { &hf_xplane_prel_header,           { "Header",             "xplane.prel",                  FT_STRINGZ, BASE_NONE,  NULL,   0,  "PREL Header",      HFILL}},
         { &hf_xplane_prel_starttype,        { "Start Type",         "xplane.prel.starttype",        FT_INT32,   BASE_DEC,   VALS(xplane_vals_StartType),   0,  "The Start Type to execute.",       HFILL}},
         { &hf_xplane_prel_aircraftindex,    { "Aircraft Index",     "xplane.prel.aircraftindex",    FT_INT32,   BASE_DEC,   NULL,   0,  "Aircraft Index (0=Own Plane, 1->19 = AI Plane).",            HFILL}},
-        { &hf_xplane_prel_ICAO,             { "ICAO",               "xplane.prel.ICAO",             FT_STRING,  STR_ASCII,  NULL,   0,  "Airport / NavAid code to place the aircraft at. Note: Max 7 chars as the packet's struct is 8 chars including the ending '\0'.",             HFILL}},
+        { &hf_xplane_prel_ICAO,             { "ICAO",               "xplane.prel.ICAO",             FT_STRING,  BASE_NONE,  NULL,   0,  "Airport / NavAid code to place the aircraft at. Note: Max 7 chars as the packet's struct is 8 chars including the ending '\0'.",             HFILL}},
         { &hf_xplane_prel_runwayindex,      { "Runway Index",       "xplane.prel.runwayindex",      FT_INT32,   BASE_DEC,   NULL,   0,  "Runway Index. 0 based on the order listed in the apt.dat file. Note 09L/27R will be one runway. See Runway direction for which end to start from.",HFILL}},
         { &hf_xplane_prel_runwaydirection,  { "Runway Direction",   "xplane.prel.runwaydirection",  FT_INT32,   BASE_DEC,   NULL,   0,  "Runway Direction. 0 (Normal) or 1 (Reversed). So for 09L/27R use 1 for 27R. For a Helipad this reverses the helipad's heading.", HFILL}},
         { &hf_xplane_prel_latitude,         { "Latitude",           "xplane.prel.latitude",         FT_DOUBLE,  BASE_NONE,  NULL,   0,  "Latitude - Ignored if the Start Type is not a LatLong.",         HFILL}},
@@ -2005,16 +2005,16 @@ void proto_register_xplane(void)
     };
     static hf_register_info hf_xplane_quit[] =
     {
-        { &hf_xplane_quit_header,   { "Header", "xplane.quit", FT_STRINGZ, STR_ASCII, NULL, 0, "QUIT Header", HFILL}},
+        { &hf_xplane_quit_header,   { "Header", "xplane.quit", FT_STRINGZ, BASE_NONE, NULL, 0, "QUIT Header", HFILL}},
     };
     static hf_register_info hf_xplane_radr_in[] =
     {
-        { &hf_xplane_radr_in_header,        { "Header",             "xplane.radr",      FT_STRINGZ, STR_ASCII,  NULL,   0,  "RADR Header (in)", HFILL}},
-        { &hf_xplane_radr_in_pointcount,    { "Points Per Frame",   "xplane.radr.id",   FT_STRINGZ, STR_ASCII,  NULL,   0,  "The number of points to send per drawn frame", HFILL}},
+        { &hf_xplane_radr_in_header,        { "Header",             "xplane.radr",      FT_STRINGZ, BASE_NONE,  NULL,   0,  "RADR Header (in)", HFILL}},
+        { &hf_xplane_radr_in_pointcount,    { "Points Per Frame",   "xplane.radr.id",   FT_STRINGZ, BASE_NONE,  NULL,   0,  "The number of points to send per drawn frame", HFILL}},
     };
     static hf_register_info hf_xplane_radr_out[] =
     {
-        { &hf_xplane_radr_out_header,        { "Header",        "xplane.radr",                  FT_STRINGZ, STR_ASCII,  NULL,   0,  "RADR Header (out)",    HFILL}},
+        { &hf_xplane_radr_out_header,        { "Header",        "xplane.radr",                  FT_STRINGZ, BASE_NONE,  NULL,   0,  "RADR Header (out)",    HFILL}},
         { &hf_xplane_radr_out_longitude,     { "Longitude",     "xplane.radr.longitude",        FT_FLOAT,   BASE_NONE,  NULL,   0,  "Longitude for this weather point",            HFILL}},
         { &hf_xplane_radr_out_latitude,      { "Latitude",      "xplane.radr.latitude",         FT_FLOAT,   BASE_NONE,  NULL,   0,  "Latitude for this weather point",             HFILL}},
         { &hf_xplane_radr_out_precipitation, { "Precipitation", "xplane.radr.precipitation",    FT_INT8,    BASE_DEC,   NULL,   0,  "Precipitation (0->100)",        HFILL}},
@@ -2022,21 +2022,21 @@ void proto_register_xplane(void)
     };
     static hf_register_info hf_xplane_reco[] =
     {
-        { &hf_xplane_reco_header,   { "Header", "xplane.reco",      FT_STRINGZ, STR_ASCII,  NULL,   0,  "RECO Header",  HFILL}},
-        { &hf_xplane_reco_id,       { "Id",     "xplane.reco.id",   FT_STRINGZ, STR_ASCII,  NULL,   0,  "Id of the plane system to recover",           HFILL}}
+        { &hf_xplane_reco_header,   { "Header", "xplane.reco",      FT_STRINGZ, BASE_NONE,  NULL,   0,  "RECO Header",  HFILL}},
+        { &hf_xplane_reco_id,       { "Id",     "xplane.reco.id",   FT_STRINGZ, BASE_NONE,  NULL,   0,  "Id of the plane system to recover",           HFILL}}
     };
     static hf_register_info hf_xplane_rese[] =
     {
-        { &hf_xplane_rese_header,   { "Header", "xplane.rese",      FT_STRINGZ, STR_ASCII,  NULL,   0,  "RESE Header",  HFILL}},
+        { &hf_xplane_rese_header,   { "Header", "xplane.rese",      FT_STRINGZ, BASE_NONE,  NULL,   0,  "RESE Header",  HFILL}},
     };
     static hf_register_info hf_xplane_rpos_in[] =
     {
-        { &hf_xplane_rpos_in_header,        { "Header",     "xplane.rpos",              FT_STRINGZ, STR_ASCII,  NULL,   0,  "RPOS Header (in)",  HFILL}},
-        { &hf_xplane_rpos_in_frequency,     { "Frequency",  "xplane.rpos.frequency",    FT_STRINGZ, STR_ASCII,  NULL,   0,  "Frequency the RPOS will be emitted by X-Plane. 0 to stop.",  HFILL}},
+        { &hf_xplane_rpos_in_header,        { "Header",     "xplane.rpos",              FT_STRINGZ, BASE_NONE,  NULL,   0,  "RPOS Header (in)",  HFILL}},
+        { &hf_xplane_rpos_in_frequency,     { "Frequency",  "xplane.rpos.frequency",    FT_STRINGZ, BASE_NONE,  NULL,   0,  "Frequency the RPOS will be emitted by X-Plane. 0 to stop.",  HFILL}},
     };
     static hf_register_info hf_xplane_rpos_out[] =
     {
-        { &hf_xplane_rpos_out_header,       { "Header",     "xplane.rpos",              FT_STRING,   STR_ASCII,  NULL,   0,  "RPOS Header (out)",                       HFILL}},
+        { &hf_xplane_rpos_out_header,       { "Header",     "xplane.rpos",              FT_STRING,   BASE_NONE,  NULL,   0,  "RPOS Header (out)",                       HFILL}},
         { &hf_xplane_rpos_out_longitude,    { "Longitude",  "xplane.rpos.longitude",    FT_DOUBLE,   BASE_NONE,  NULL,   0,  "Plane's Longitude",                               HFILL}},
         { &hf_xplane_rpos_out_latitude ,    { "Latitude",   "xplane.rpos.latitude",     FT_DOUBLE,   BASE_NONE,  NULL,   0,  "Plane's Latitude",                                HFILL}},
         { &hf_xplane_rpos_out_elevation,    { "Elevation",  "xplane.rpos.elevation",    FT_DOUBLE,   BASE_NONE,  NULL,   0,  "Plane's Altitude (metres above mean sea level)",  HFILL}},
@@ -2053,55 +2053,55 @@ void proto_register_xplane(void)
     };
     static hf_register_info hf_xplane_rref_in[] =
     {
-        { &hf_xplane_rref_in_header,    { "Header",     "xplane.rref",              FT_STRINGZ,     STR_ASCII,  NULL,   0,  "RREF Header (IN)", HFILL}},
+        { &hf_xplane_rref_in_header,    { "Header",     "xplane.rref",              FT_STRINGZ,     BASE_NONE,  NULL,   0,  "RREF Header (IN)", HFILL}},
         { &hf_xplane_rref_in_frequency, { "Frequency",  "xplane.rref.frequency",    FT_INT32,       BASE_DEC,   NULL,   0,  "Frequency. 0 to stop.",        HFILL}},
         { &hf_xplane_rref_in_id,        { "Id",         "xplane.rref.id",           FT_INT32,       BASE_DEC,   NULL,   0,  "Id to use for this dataref.",               HFILL}},
-        { &hf_xplane_rref_in_dataref,   { "Dataref",    "xplane.rref.dataref",      FT_STRINGZPAD,  STR_ASCII,  NULL,   0,  "The Dataref. Padded with '\0'.",          HFILL}}
+        { &hf_xplane_rref_in_dataref,   { "Dataref",    "xplane.rref.dataref",      FT_STRINGZPAD,  BASE_NONE,  NULL,   0,  "The Dataref. Padded with '\0'.",          HFILL}}
     };
     static hf_register_info hf_xplane_rref_out[] =
     {
-        { &hf_xplane_rref_out_header,   { "Header", "xplane.rref",          FT_STRINGZ, STR_ASCII,  NULL,   0,  "RREF Header (OUT)",    HFILL}},
+        { &hf_xplane_rref_out_header,   { "Header", "xplane.rref",          FT_STRINGZ, BASE_NONE,  NULL,   0,  "RREF Header (OUT)",    HFILL}},
         { &hf_xplane_rref_out_id,       { "Id",     "xplane.rref.id",       FT_INT32,   BASE_DEC,   NULL,   0,  "Id for this dataref.",                   HFILL}},
         { &hf_xplane_rref_out_value,    { "Value",  "xplane.rref.value",    FT_FLOAT,   BASE_NONE,  NULL,   0,  "Value for this dataref.",                HFILL}}
     };
     static hf_register_info hf_xplane_shut[] =
     {
-        { &hf_xplane_shut_header,   { "Header", "xplane.shut",      FT_STRINGZ, STR_ASCII,  NULL,   0,  "SHUT Header",  HFILL}},
+        { &hf_xplane_shut_header,   { "Header", "xplane.shut",      FT_STRINGZ, BASE_NONE,  NULL,   0,  "SHUT Header",  HFILL}},
     };
     static hf_register_info hf_xplane_simo[] =
     {
-        { &hf_xplane_simo_header,   { "Header", "xplane.simo",          FT_STRINGZ,     STR_ASCII,  NULL,   0,  "SIMO Header",  HFILL}},
+        { &hf_xplane_simo_header,   { "Header", "xplane.simo",          FT_STRINGZ,     BASE_NONE,  NULL,   0,  "SIMO Header",  HFILL}},
         { &hf_xplane_simo_action,   { "Header", "xplane.simo.action",   FT_INT32,       BASE_DEC,   VALS(xplane_vals_Simo_ActionID),   0,  "Action to take",       HFILL}},
-        { &hf_xplane_simo_filename, { "Header", "xplane.simo.filename", FT_STRINGZPAD,  STR_ASCII,  NULL,   0,  "Filename relative to X-Plane home folder.",     HFILL}}
+        { &hf_xplane_simo_filename, { "Header", "xplane.simo.filename", FT_STRINGZPAD,  BASE_NONE,  NULL,   0,  "Filename relative to X-Plane home folder.",     HFILL}}
     };
     static hf_register_info hf_xplane_soun[] =
     {
-        { &hf_xplane_soun_header,   { "Header",     "xplane.soun",          FT_STRINGZ,     STR_ASCII,  NULL,   0,  "SOUN Header",  HFILL}},
+        { &hf_xplane_soun_header,   { "Header",     "xplane.soun",          FT_STRINGZ,     BASE_NONE,  NULL,   0,  "SOUN Header",  HFILL}},
         { &hf_xplane_soun_frequency,{ "Frequency",  "xplane.soun.frequency",FT_FLOAT,       BASE_NONE,  NULL,   0,  "Relative Speed (0->1)",        HFILL}},
         { &hf_xplane_soun_volume,   { "Volume",     "xplane.soun.volume",   FT_FLOAT,       BASE_NONE,  NULL,   0,  "Relative Volume (0->1)",       HFILL}},
-        { &hf_xplane_soun_filename, { "Filename",   "xplane.soun.filename", FT_STRINGZPAD,  STR_ASCII,  NULL,   0,  "Relative Filename from the X-Plane home directory. Use Unix-style / seperators. (Max 500)",     HFILL}}
+        { &hf_xplane_soun_filename, { "Filename",   "xplane.soun.filename", FT_STRINGZPAD,  BASE_NONE,  NULL,   0,  "Relative Filename from the X-Plane home directory. Use Unix-style / seperators. (Max 500)",     HFILL}}
     };
     static hf_register_info hf_xplane_ssnd[] =
     {
-        { &hf_xplane_ssnd_header,   { "Header",     "xplane.ssnd",          FT_STRINGZ,     STR_ASCII,  NULL,   0,  "SSND Header",  HFILL}},
+        { &hf_xplane_ssnd_header,   { "Header",     "xplane.ssnd",          FT_STRINGZ,     BASE_NONE,  NULL,   0,  "SSND Header",  HFILL}},
         { &hf_xplane_ssnd_index,    { "Index",      "xplane.ssnd.index",    FT_INT32,       BASE_DEC,   NULL,   0,  "Index (0->4)",        HFILL}},
         { &hf_xplane_ssnd_speed,    { "Speed",      "xplane.ssnd.speed",    FT_FLOAT,       BASE_NONE,  NULL,   0,  "Relative Speed (0->1)",        HFILL}},
         { &hf_xplane_ssnd_volume,   { "Volume",     "xplane.ssnd.volume",   FT_FLOAT,       BASE_NONE,  NULL,   0,  "Relative Volume (0->1)",       HFILL}},
-        { &hf_xplane_ssnd_filename, { "Filename",   "xplane.ssnd.filename", FT_STRINGZPAD,  STR_ASCII,  NULL,   0,  "Relative Filename from the X-Plane home directory. Use Unix-style / seperators.",     HFILL}}
+        { &hf_xplane_ssnd_filename, { "Filename",   "xplane.ssnd.filename", FT_STRINGZPAD,  BASE_NONE,  NULL,   0,  "Relative Filename from the X-Plane home directory. Use Unix-style / seperators.",     HFILL}}
     };
     static hf_register_info hf_xplane_ucoc[] =
     {
-        { &hf_xplane_ucoc_header,   { "Header", "xplane.ucoc",      FT_STRINGZ, STR_ASCII,  NULL,   0,  "UCOC Header",  HFILL}},
+        { &hf_xplane_ucoc_header,   { "Header", "xplane.ucoc",      FT_STRINGZ, BASE_NONE,  NULL,   0,  "UCOC Header",  HFILL}},
         { &hf_xplane_ucoc_id,       { "Id",     "xplane.ucoc.id",   FT_INT32,   BASE_DEC,   NULL,   0,  "A Data row id",      HFILL}}
     };
     static hf_register_info hf_xplane_usel[] =
     {
-        { &hf_xplane_usel_header,   { "Header", "xplane.usel",      FT_STRINGZ, STR_ASCII,  NULL,   0,  "USEL Header",  HFILL}},
+        { &hf_xplane_usel_header,   { "Header", "xplane.usel",      FT_STRINGZ, BASE_NONE,  NULL,   0,  "USEL Header",  HFILL}},
         { &hf_xplane_usel_id,       { "Id",     "xplane.usel.id",   FT_INT32,   BASE_DEC,   NULL,   0,  "A Data row id",      HFILL}}
     };
     static hf_register_info hf_xplane_vehx[] =
     {
-        { &hf_xplane_vehx_header,       { "Header",     "xplane.vehx",              FT_STRINGZ, STR_ASCII,  NULL,   0,  "VEHX Header",  HFILL}},
+        { &hf_xplane_vehx_header,       { "Header",     "xplane.vehx",              FT_STRINGZ, BASE_NONE,  NULL,   0,  "VEHX Header",  HFILL}},
         { &hf_xplane_vehx_id,           { "Id",         "xplane.vehx.id",           FT_INT32,   BASE_DEC,   NULL,   0,  "Aircraft Index (0=Own Plane, 1->19 = AI Plane).",            HFILL}},
         { &hf_xplane_vehx_latitude,     { "Latitude",   "xplane.vehx.latitude",     FT_DOUBLE,  BASE_NONE,  NULL,   0,  "Aircraft Latitude",     HFILL}},
         { &hf_xplane_vehx_longitude,    { "Longitude",  "xplane.vehx.longitude",    FT_DOUBLE,  BASE_NONE,  NULL,   0,  "Aircraft Longitude",    HFILL}},
