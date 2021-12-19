@@ -35,6 +35,8 @@
 #include <epan/unit_strings.h>
 #include <epan/expert.h>
 
+#include <wsutil/str_util.h>
+
 /* Prototypes */
 /* (Required to prevent [-Wmissing-prototypes] warnings */
 void proto_reg_handoff_xplane(void);
