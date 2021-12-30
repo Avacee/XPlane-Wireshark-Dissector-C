@@ -36,7 +36,7 @@ The folders can be found via _Menu -> Help -> About Wireshark -> Folders -> Pers
 Restart Wireshark if already running.   
 You can check Wireshark has loaded the plugin via Menu->Help->About Wireshark->Plugins Tab. The name will be *xplane* with a type of *dissector*.  
 
-Developed and tested on Windows 10+11 and Microsoft Visual Studio 2019/2022-RC1  
+Developed and tested on Windows 10+11 and Microsoft Visual Studio 2019/2022  
 Linux testing on Ubuntu 20.04.1 and WSL2 (Ubuntu and Debian)
 
 ### Usage.
@@ -49,4 +49,4 @@ To only see those DATA packets with an index of 0 (Frame Rate Info) filter on "x
 [X] Add releases for Windows 3.4, Ubuntu 3.2.  
 [X] Use wireshark's expert mechanism instead of validate_packet() just returning 0.  
 [ ] Add descriptive lookups for DATA packets.  
-[ ] Track RREF's.
+[X] Track RREF's.
