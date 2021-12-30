@@ -34,6 +34,7 @@
 #include <epan/prefs.h>
 #include <epan/unit_strings.h>
 #include <epan/expert.h>
+#include <epan/conversation.h>
 
 #include <wsutil/str_util.h>
 
@@ -414,6 +415,7 @@ static gint ett_xplane_rref_out = -1;
 static int hf_xplane_rref_out_header = -1;
 static int hf_xplane_rref_out_id = -1;
 static int hf_xplane_rref_out_value = -1;
+static int hf_xplane_rref_out_idlink = -1;
 
 // ---------- SHUT Declarations ---------- 
 #define xplane_SHUT_PACKET_LENGTH xplane_MIN_PACKET_LENGTH
@@ -1424,17 +1426,20 @@ static int dissect_xplane_rref_in(tvbuff_t* tvb, packet_info* pinfo, proto_tree*
     tvbuff_t* tvb_content = tvb_new_subset_length(tvb, xplane_HEADER_LENGTH, -1);
     proto_tree_add_item_ret_int(xplane_rref_tree, hf_xplane_rref_in_frequency, tvb_content, 0, 4, ENC_LITTLE_ENDIAN, &frequency);
     proto_tree_add_item_ret_int(xplane_rref_tree, hf_xplane_rref_in_id, tvb_content, 4, 4, ENC_LITTLE_ENDIAN, &id);
-    proto_tree_add_item_ret_string(xplane_rref_tree, hf_xplane_rref_in_dataref, tvb_content, 8, 400, ENC_ASCII, wmem_packet_scope(), &rref);
+    proto_tree_add_item_ret_string(xplane_rref_tree, hf_xplane_rref_in_dataref, tvb_content, 8, 400, ENC_ASCII, wmem_file_scope(), &rref);
 
     col_append_fstr(pinfo->cinfo, COL_INFO, " Id=%d, Freq=%d, RRef=%s", id, frequency, rref);
+
+    conversation_t* conv = conversation_new_by_id(pinfo->num, ENDPOINT_UDP, id, 0);
+    conversation_add_proto_data(conv, proto_xplane, (void*) rref);
 
     return tvb_captured_length(tvb);
 }
 
 static int dissect_xplane_rref_out(tvbuff_t* tvb, packet_info* pinfo, proto_tree* tree, void* data _U_)
 {
-    guint recordCount = (tvb_captured_length(tvb) - 5) / 8;
     guint length = tvb_captured_length(tvb);
+    guint recordCount = (length - 5) / 8;
 
     proto_item* xplane_rref_item = proto_tree_add_item(tree, proto_xplane, tvb, 0, -1, ENC_NA);
     proto_item_append_text(xplane_rref_item, " Length=%u bytes. Count=%u", length, recordCount);
@@ -1449,6 +1454,10 @@ static int dissect_xplane_rref_out(tvbuff_t* tvb, packet_info* pinfo, proto_tree
         proto_tree* xplane_content_tree = proto_tree_add_subtree_format(xplane_rref_tree, tvb_content, 8 * i, 8, ett_xplane_rref_out, NULL, "RREF Id: %d", id);
         proto_tree_add_item(xplane_content_tree, hf_xplane_rref_out_id, tvb_content, 8 * i, 4, ENC_LITTLE_ENDIAN);
         proto_tree_add_item(xplane_content_tree, hf_xplane_rref_out_value, tvb_content, (8 * i) + 4, 4, ENC_LITTLE_ENDIAN);
+
+        conversation_t* conv = find_conversation_by_id(pinfo->num, ENDPOINT_UDP, id, 0);
+        if (conv != NULL)
+            proto_item_append_text(xplane_content_tree, " : %s", (gchar*)conversation_get_proto_data(conv, proto_xplane));
     }
 
     col_append_fstr(pinfo->cinfo, COL_INFO, " Count=%d", recordCount);
@@ -2064,7 +2073,8 @@ void proto_register_xplane(void)
     {
         { &hf_xplane_rref_out_header,   { "Header", "xplane.rref",          FT_STRINGZ, BASE_NONE,  NULL,   0,  "RREF Header (OUT)",    HFILL}},
         { &hf_xplane_rref_out_id,       { "Id",     "xplane.rref.id",       FT_INT32,   BASE_DEC,   NULL,   0,  "Id for this dataref.",                   HFILL}},
-        { &hf_xplane_rref_out_value,    { "Value",  "xplane.rref.value",    FT_FLOAT,   BASE_NONE,  NULL,   0,  "Value for this dataref.",                HFILL}}
+        { &hf_xplane_rref_out_value,    { "Value",  "xplane.rref.value",    FT_FLOAT,   BASE_NONE,  NULL,   0,  "Value for this dataref.",                HFILL}},
+        { &hf_xplane_rref_out_idlink,   { "IdLink", "xplane.rref.idlink",   FT_STRINGZ, BASE_NONE,  NULL,   0,  "Packet that requested this ID.",         HFILL}}
     };
     static hf_register_info hf_xplane_shut[] =
     {
