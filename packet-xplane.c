@@ -37,6 +37,7 @@
 #include <epan/conversation.h>
 
 #include <wsutil/str_util.h>
+#include <wsutil/wmem/wmem_strbuf.h>
 
 /* Prototypes */
 /* (Required to prevent [-Wmissing-prototypes] warnings */
@@ -149,6 +150,7 @@ static int hf_xplane_data_g = -1;
 static int hf_xplane_data_h = -1;
 
 static expert_field ei_xplane_data_length = EI_INIT;
+static expert_field ei_xplane_data_invalid_index = EI_INIT;
 
 // ---------- DCOC Declarations ---------- 
 static gint ett_xplane_dcoc = -1;
@@ -627,6 +629,967 @@ static const value_string xplane_vals_Simo_ActionID[] = {
     { 0, NULL }
 };
 
+#define xplane_MAX_DATA_INDEX 139
+static wmem_strbuf_t* xplane_data_lookup_table[xplane_MAX_DATA_INDEX][9];
+static gboolean xplane_data_lookup_table_is_populated = FALSE;
+
+static void xplane_populate_data_lookup_table(void)
+{
+    xplane_data_lookup_table[0][0] = wmem_strbuf_new(wmem_epan_scope(), "Frame Rate Info");
+    xplane_data_lookup_table[0][1] = wmem_strbuf_new(wmem_epan_scope(), "Actual Frame Rate");
+    xplane_data_lookup_table[0][2] = wmem_strbuf_new(wmem_epan_scope(), "Sim Frame Rate");
+    xplane_data_lookup_table[0][3] = wmem_strbuf_new(wmem_epan_scope(), "");
+    xplane_data_lookup_table[0][4] = wmem_strbuf_new(wmem_epan_scope(), "Frame Time (s) DataRef=sim/time/framerate_period");
+    xplane_data_lookup_table[0][5] = wmem_strbuf_new(wmem_epan_scope(), "CPU Time (s)");
+    xplane_data_lookup_table[0][6] = wmem_strbuf_new(wmem_epan_scope(), "GPU Time (s)  DataRef=sim/time/gpu_time_per_frame_sec_approx");
+    xplane_data_lookup_table[0][7] = wmem_strbuf_new(wmem_epan_scope(), "grnd ratio");
+    xplane_data_lookup_table[0][8] = wmem_strbuf_new(wmem_epan_scope(), "flit ratio (Requested Simulator Speed multiple from ctrl-T  DataRef=sim/time/sim_speed_actual");
+
+    xplane_data_lookup_table[1][0] = wmem_strbuf_new(wmem_epan_scope(), "Times");
+    xplane_data_lookup_table[1][1] = wmem_strbuf_new(wmem_epan_scope(), "Elapsed Sim Start (s)");
+    xplane_data_lookup_table[1][2] = wmem_strbuf_new(wmem_epan_scope(), "Elapsed Total Time (exc Start Screen) (s)");
+    xplane_data_lookup_table[1][3] = wmem_strbuf_new(wmem_epan_scope(), "Elapsed Mission Time (s)");
+    xplane_data_lookup_table[1][4] = wmem_strbuf_new(wmem_epan_scope(), "Elapsed Timer (s)");
+    xplane_data_lookup_table[1][5] = wmem_strbuf_new(wmem_epan_scope(), "");
+    xplane_data_lookup_table[1][6] = wmem_strbuf_new(wmem_epan_scope(), "Zulu Time  DataRef=sim/time/zulu_time_sec");
+    xplane_data_lookup_table[1][7] = wmem_strbuf_new(wmem_epan_scope(), "Simulator Local Time");
+    xplane_data_lookup_table[1][8] = wmem_strbuf_new(wmem_epan_scope(), "Hobbs Time DataRef=sim/time/hobbs_time");
+
+    xplane_data_lookup_table[2][0] = wmem_strbuf_new(wmem_epan_scope(), "Sim Stats");
+    xplane_data_lookup_table[2][1] = wmem_strbuf_new(wmem_epan_scope(), "USE (puffs)");
+    xplane_data_lookup_table[2][2] = wmem_strbuf_new(wmem_epan_scope(), "TOT (puffs)");
+    xplane_data_lookup_table[2][3] = wmem_strbuf_new(wmem_epan_scope(), "Triangles Visible");
+    xplane_data_lookup_table[2][4] = wmem_strbuf_new(wmem_epan_scope(), "");
+    xplane_data_lookup_table[2][5] = wmem_strbuf_new(wmem_epan_scope(), "");
+    xplane_data_lookup_table[2][6] = wmem_strbuf_new(wmem_epan_scope(), "");
+    xplane_data_lookup_table[2][7] = wmem_strbuf_new(wmem_epan_scope(), "");
+    xplane_data_lookup_table[2][8] = wmem_strbuf_new(wmem_epan_scope(), "");
+
+    xplane_data_lookup_table[3][0] = wmem_strbuf_new(wmem_epan_scope(), "Speeds");
+    xplane_data_lookup_table[3][1] = wmem_strbuf_new(wmem_epan_scope(), "Knots Indicated Airspeed");
+    xplane_data_lookup_table[3][2] = wmem_strbuf_new(wmem_epan_scope(), "Knots Equivalent Airspeed");
+    xplane_data_lookup_table[3][3] = wmem_strbuf_new(wmem_epan_scope(), "Knots True Airspeed");
+    xplane_data_lookup_table[3][4] = wmem_strbuf_new(wmem_epan_scope(), "Knots Tree Ground Speed");
+    xplane_data_lookup_table[3][5] = wmem_strbuf_new(wmem_epan_scope(), "");
+    xplane_data_lookup_table[3][6] = wmem_strbuf_new(wmem_epan_scope(), "Indicated (mph)");
+    xplane_data_lookup_table[3][7] = wmem_strbuf_new(wmem_epan_scope(), "True Airspeed (mph)");
+    xplane_data_lookup_table[3][8] = wmem_strbuf_new(wmem_epan_scope(), "True Ground Speed (mph)");
+
+    xplane_data_lookup_table[4][0] = wmem_strbuf_new(wmem_epan_scope(), "Mach, VVI, g-load");
+    xplane_data_lookup_table[4][1] = wmem_strbuf_new(wmem_epan_scope(), "Current Mach");
+    xplane_data_lookup_table[4][2] = wmem_strbuf_new(wmem_epan_scope(), "");
+    xplane_data_lookup_table[4][3] = wmem_strbuf_new(wmem_epan_scope(), "Vertical Velocity (feet per minute)");
+    xplane_data_lookup_table[4][4] = wmem_strbuf_new(wmem_epan_scope(), "");
+    xplane_data_lookup_table[4][5] = wmem_strbuf_new(wmem_epan_scope(), "Gload (normal)");
+    xplane_data_lookup_table[4][6] = wmem_strbuf_new(wmem_epan_scope(), "GLoad (axial)");
+    xplane_data_lookup_table[4][7] = wmem_strbuf_new(wmem_epan_scope(), "Gload (side)");
+    xplane_data_lookup_table[4][8] = wmem_strbuf_new(wmem_epan_scope(), "");
+
+    xplane_data_lookup_table[5][0] = wmem_strbuf_new(wmem_epan_scope(), "Weather");
+    xplane_data_lookup_table[5][1] = wmem_strbuf_new(wmem_epan_scope(), "Sea Level Pressure (inHG)");
+    xplane_data_lookup_table[5][2] = wmem_strbuf_new(wmem_epan_scope(), "Sea Level Temperature (degC)");
+    xplane_data_lookup_table[5][3] = wmem_strbuf_new(wmem_epan_scope(), "");
+    xplane_data_lookup_table[5][4] = wmem_strbuf_new(wmem_epan_scope(), "Wind Speed (knots)");
+    xplane_data_lookup_table[5][5] = wmem_strbuf_new(wmem_epan_scope(), "Wind From Direction 0=N->S  270=West->East");
+    xplane_data_lookup_table[5][6] = wmem_strbuf_new(wmem_epan_scope(), "Local Turbulance (0->1)");
+    xplane_data_lookup_table[5][7] = wmem_strbuf_new(wmem_epan_scope(), "Local Precipitation (0->1)");
+    xplane_data_lookup_table[5][8] = wmem_strbuf_new(wmem_epan_scope(), "Local Hail (0->1)");
+
+    xplane_data_lookup_table[6][0] = wmem_strbuf_new(wmem_epan_scope(), "Aircraft atmosphere");
+    xplane_data_lookup_table[6][1] = wmem_strbuf_new(wmem_epan_scope(), "Atmospheric Pressure (inHG)");
+    xplane_data_lookup_table[6][2] = wmem_strbuf_new(wmem_epan_scope(), "Atmospheric Temperature (degC)");
+    xplane_data_lookup_table[6][3] = wmem_strbuf_new(wmem_epan_scope(), "LE temp (degC)");
+    xplane_data_lookup_table[6][4] = wmem_strbuf_new(wmem_epan_scope(), "Aircraft Density Ratio");
+    xplane_data_lookup_table[6][5] = wmem_strbuf_new(wmem_epan_scope(), "A (ktas)");
+    xplane_data_lookup_table[6][6] = wmem_strbuf_new(wmem_epan_scope(), "Q Dynamic pressue (lbs / ft^2)");
+    xplane_data_lookup_table[6][7] = wmem_strbuf_new(wmem_epan_scope(), "");
+    xplane_data_lookup_table[6][8] = wmem_strbuf_new(wmem_epan_scope(), "Gravitational Force (feet/s^2)");
+
+    xplane_data_lookup_table[7][0] = wmem_strbuf_new(wmem_epan_scope(), "System pressures");
+    xplane_data_lookup_table[7][1] = wmem_strbuf_new(wmem_epan_scope(), "Barometric pressure (inHG)");
+    xplane_data_lookup_table[7][2] = wmem_strbuf_new(wmem_epan_scope(), "edens (part)");
+    xplane_data_lookup_table[7][3] = wmem_strbuf_new(wmem_epan_scope(), "Vacuum ratio");
+    xplane_data_lookup_table[7][4] = wmem_strbuf_new(wmem_epan_scope(), "Vacuum ratio");
+    xplane_data_lookup_table[7][5] = wmem_strbuf_new(wmem_epan_scope(), "Elec ratio");
+    xplane_data_lookup_table[7][6] = wmem_strbuf_new(wmem_epan_scope(), "Elec ratio");
+    xplane_data_lookup_table[7][7] = wmem_strbuf_new(wmem_epan_scope(), "AHRS ratio");
+    xplane_data_lookup_table[7][8] = wmem_strbuf_new(wmem_epan_scope(), "AHRS ratio");
+
+    xplane_data_lookup_table[8][0] = wmem_strbuf_new(wmem_epan_scope(), "Joystick aileron/elevator/rudder");
+    xplane_data_lookup_table[8][1] = wmem_strbuf_new(wmem_epan_scope(), "Elevator Full down = -1 Full Up = +1");
+    xplane_data_lookup_table[8][2] = wmem_strbuf_new(wmem_epan_scope(), "Aileron Full Left = -1  Full Right = +1");
+    xplane_data_lookup_table[8][3] = wmem_strbuf_new(wmem_epan_scope(), "Rudder  Full Left = -1  Full Right = +1");
+    xplane_data_lookup_table[8][4] = wmem_strbuf_new(wmem_epan_scope(), "");
+    xplane_data_lookup_table[8][5] = wmem_strbuf_new(wmem_epan_scope(), "");
+    xplane_data_lookup_table[8][6] = wmem_strbuf_new(wmem_epan_scope(), "");
+    xplane_data_lookup_table[8][7] = wmem_strbuf_new(wmem_epan_scope(), "");
+    xplane_data_lookup_table[8][8] = wmem_strbuf_new(wmem_epan_scope(), "");
+
+    xplane_data_lookup_table[9][0] = wmem_strbuf_new(wmem_epan_scope(), "Other Flight Controls");
+    xplane_data_lookup_table[9][1] = wmem_strbuf_new(wmem_epan_scope(), "Requested Thrust Vectoring");
+    xplane_data_lookup_table[9][2] = wmem_strbuf_new(wmem_epan_scope(), "Requested Wing Sweep");
+    xplane_data_lookup_table[9][3] = wmem_strbuf_new(wmem_epan_scope(), "Requested Wing Incidence");
+    xplane_data_lookup_table[9][4] = wmem_strbuf_new(wmem_epan_scope(), "Requested Wing Digedral");
+    xplane_data_lookup_table[9][5] = wmem_strbuf_new(wmem_epan_scope(), "Requested Wing Retration");
+    xplane_data_lookup_table[9][6] = wmem_strbuf_new(wmem_epan_scope(), "");
+    xplane_data_lookup_table[9][7] = wmem_strbuf_new(wmem_epan_scope(), "");
+    xplane_data_lookup_table[9][8] = wmem_strbuf_new(wmem_epan_scope(), "Water Jettisoned");
+
+    xplane_data_lookup_table[10][0] = wmem_strbuf_new(wmem_epan_scope(), "Artificial Stability Input");
+    xplane_data_lookup_table[10][1] = wmem_strbuf_new(wmem_epan_scope(), "Elevator Full down = -1 Full Up = +1");
+    xplane_data_lookup_table[10][2] = wmem_strbuf_new(wmem_epan_scope(), "Aileron Full Left = -1  Full Right = +1");
+    xplane_data_lookup_table[10][3] = wmem_strbuf_new(wmem_epan_scope(), "Rudder  Full Left = -1  Full Right = +1");
+    xplane_data_lookup_table[10][4] = wmem_strbuf_new(wmem_epan_scope(), "");
+    xplane_data_lookup_table[10][5] = wmem_strbuf_new(wmem_epan_scope(), "");
+    xplane_data_lookup_table[10][6] = wmem_strbuf_new(wmem_epan_scope(), "");
+    xplane_data_lookup_table[10][7] = wmem_strbuf_new(wmem_epan_scope(), "");
+    xplane_data_lookup_table[10][8] = wmem_strbuf_new(wmem_epan_scope(), "");
+
+    xplane_data_lookup_table[11][0] = wmem_strbuf_new(wmem_epan_scope(), "Flight Control Deflections");
+    xplane_data_lookup_table[11][1] = wmem_strbuf_new(wmem_epan_scope(), "Elevator Full down = -1 Full Up = +1");
+    xplane_data_lookup_table[11][2] = wmem_strbuf_new(wmem_epan_scope(), "Aileron Full Left = -1  Full Right = +1");
+    xplane_data_lookup_table[11][3] = wmem_strbuf_new(wmem_epan_scope(), "Rudder  Full Left = -1  Full Right = +1");
+    xplane_data_lookup_table[11][4] = wmem_strbuf_new(wmem_epan_scope(), "");
+    xplane_data_lookup_table[11][5] = wmem_strbuf_new(wmem_epan_scope(), "Nosewheel Degrees from forward. Negative = left, Positive = right");
+    xplane_data_lookup_table[11][6] = wmem_strbuf_new(wmem_epan_scope(), "");
+    xplane_data_lookup_table[11][7] = wmem_strbuf_new(wmem_epan_scope(), "");
+    xplane_data_lookup_table[11][8] = wmem_strbuf_new(wmem_epan_scope(), "");
+
+    xplane_data_lookup_table[12][0] = wmem_strbuf_new(wmem_epan_scope(), "Wing sweep and thrust vectoring");
+    xplane_data_lookup_table[12][1] = wmem_strbuf_new(wmem_epan_scope(), "Sweep 1 (degrees back from normal)");
+    xplane_data_lookup_table[12][2] = wmem_strbuf_new(wmem_epan_scope(), "Sweep 1 (degrees back from normal)");
+    xplane_data_lookup_table[12][3] = wmem_strbuf_new(wmem_epan_scope(), "Sweep (degrees back from normal)");
+    xplane_data_lookup_table[12][4] = wmem_strbuf_new(wmem_epan_scope(), "Vector Ratio");
+    xplane_data_lookup_table[12][5] = wmem_strbuf_new(wmem_epan_scope(), "Sweep ratio (to fully forward)");
+    xplane_data_lookup_table[12][6] = wmem_strbuf_new(wmem_epan_scope(), "Incidence ratio (to fully angled)");
+    xplane_data_lookup_table[12][7] = wmem_strbuf_new(wmem_epan_scope(), "Dihedral ratio (to fulyl angled)");
+    xplane_data_lookup_table[12][8] = wmem_strbuf_new(wmem_epan_scope(), "Retraction ratio (to fully angled)");
+
+    xplane_data_lookup_table[13][0] = wmem_strbuf_new(wmem_epan_scope(), "Trim / flaps / Slats / Speedbrakes");
+    xplane_data_lookup_table[13][1] = wmem_strbuf_new(wmem_epan_scope(), "Elevator trim");
+    xplane_data_lookup_table[13][2] = wmem_strbuf_new(wmem_epan_scope(), "Aileron trim");
+    xplane_data_lookup_table[13][3] = wmem_strbuf_new(wmem_epan_scope(), "Rudder trim");
+    xplane_data_lookup_table[13][4] = wmem_strbuf_new(wmem_epan_scope(), "Flap Requested (0->1)");
+    xplane_data_lookup_table[13][5] = wmem_strbuf_new(wmem_epan_scope(), "Flap Ratio (0->1)");
+    xplane_data_lookup_table[13][6] = wmem_strbuf_new(wmem_epan_scope(), "Slat Ratio");
+    xplane_data_lookup_table[13][7] = wmem_strbuf_new(wmem_epan_scope(), "Speedbrake Requested (0->1)");
+    xplane_data_lookup_table[13][8] = wmem_strbuf_new(wmem_epan_scope(), "Speedbrake Ratio (0->1)");
+
+    xplane_data_lookup_table[14][0] = wmem_strbuf_new(wmem_epan_scope(), "Gear and Brakes");
+    xplane_data_lookup_table[14][1] = wmem_strbuf_new(wmem_epan_scope(), "Gear Requested (0->1)");
+    xplane_data_lookup_table[14][2] = wmem_strbuf_new(wmem_epan_scope(), "wbrak, set");
+    xplane_data_lookup_table[14][3] = wmem_strbuf_new(wmem_epan_scope(), "Left Toe Brake requested");
+    xplane_data_lookup_table[14][4] = wmem_strbuf_new(wmem_epan_scope(), "Right Toe Brake requested");
+    xplane_data_lookup_table[14][5] = wmem_strbuf_new(wmem_epan_scope(), "wbrak, position");
+    xplane_data_lookup_table[14][6] = wmem_strbuf_new(wmem_epan_scope(), "");
+    xplane_data_lookup_table[14][7] = wmem_strbuf_new(wmem_epan_scope(), "");
+    xplane_data_lookup_table[14][8] = wmem_strbuf_new(wmem_epan_scope(), "");
+
+    xplane_data_lookup_table[15][0] = wmem_strbuf_new(wmem_epan_scope(), "Angular Moments");
+    xplane_data_lookup_table[15][1] = wmem_strbuf_new(wmem_epan_scope(), "M Roll Torque around X-axis (foot / lbs)");
+    xplane_data_lookup_table[15][2] = wmem_strbuf_new(wmem_epan_scope(), "L Roll Torque around Z-axis (foot / lbs)");
+    xplane_data_lookup_table[15][3] = wmem_strbuf_new(wmem_epan_scope(), "N Roll Torque around Y-axis (foot / lbs)");
+    xplane_data_lookup_table[15][4] = wmem_strbuf_new(wmem_epan_scope(), "");
+    xplane_data_lookup_table[15][5] = wmem_strbuf_new(wmem_epan_scope(), "");
+    xplane_data_lookup_table[15][6] = wmem_strbuf_new(wmem_epan_scope(), "");
+    xplane_data_lookup_table[15][7] = wmem_strbuf_new(wmem_epan_scope(), "");
+    xplane_data_lookup_table[15][8] = wmem_strbuf_new(wmem_epan_scope(), "");
+
+    xplane_data_lookup_table[16][0] = wmem_strbuf_new(wmem_epan_scope(), "Angular Velocities");
+    xplane_data_lookup_table[16][1] = wmem_strbuf_new(wmem_epan_scope(), "Q Pitch Rate (measued in Body-axes)");
+    xplane_data_lookup_table[16][2] = wmem_strbuf_new(wmem_epan_scope(), "P Roll Rate (measued in Body-axes)");
+    xplane_data_lookup_table[16][3] = wmem_strbuf_new(wmem_epan_scope(), "R Yaw Rate (measued in Body-axes)");
+    xplane_data_lookup_table[16][5] = wmem_strbuf_new(wmem_epan_scope(), "");
+    xplane_data_lookup_table[16][6] = wmem_strbuf_new(wmem_epan_scope(), "");
+    xplane_data_lookup_table[16][7] = wmem_strbuf_new(wmem_epan_scope(), "");
+    xplane_data_lookup_table[16][8] = wmem_strbuf_new(wmem_epan_scope(), "");
+    xplane_data_lookup_table[16][4] = wmem_strbuf_new(wmem_epan_scope(), "");
+
+    xplane_data_lookup_table[17][0] = wmem_strbuf_new(wmem_epan_scope(), "Pitch / Roll / Headings");
+    xplane_data_lookup_table[17][1] = wmem_strbuf_new(wmem_epan_scope(), "Pitch degrees (measured in body-axis Euler angles)");
+    xplane_data_lookup_table[17][2] = wmem_strbuf_new(wmem_epan_scope(), "Roll degrees (measured in body-axis Euler angles)");
+    xplane_data_lookup_table[17][3] = wmem_strbuf_new(wmem_epan_scope(), "True Heading (degrees)");
+    xplane_data_lookup_table[17][4] = wmem_strbuf_new(wmem_epan_scope(), "Magnetic Heading (degrees)");
+    xplane_data_lookup_table[17][5] = wmem_strbuf_new(wmem_epan_scope(), "");
+    xplane_data_lookup_table[17][6] = wmem_strbuf_new(wmem_epan_scope(), "");
+    xplane_data_lookup_table[17][7] = wmem_strbuf_new(wmem_epan_scope(), "");
+    xplane_data_lookup_table[17][8] = wmem_strbuf_new(wmem_epan_scope(), "");
+
+    xplane_data_lookup_table[18][0] = wmem_strbuf_new(wmem_epan_scope(), "Angle Of Attack, sideslip, paths");
+    xplane_data_lookup_table[18][1] = wmem_strbuf_new(wmem_epan_scope(), "Alpha - AoA (degrees)");
+    xplane_data_lookup_table[18][2] = wmem_strbuf_new(wmem_epan_scope(), "Beta slideslip (degrees)");
+    xplane_data_lookup_table[18][3] = wmem_strbuf_new(wmem_epan_scope(), "HPath (degrees)");
+    xplane_data_lookup_table[18][4] = wmem_strbuf_new(wmem_epan_scope(), "VPath (degrees)");
+    xplane_data_lookup_table[18][5] = wmem_strbuf_new(wmem_epan_scope(), "");
+    xplane_data_lookup_table[18][6] = wmem_strbuf_new(wmem_epan_scope(), "");
+    xplane_data_lookup_table[18][7] = wmem_strbuf_new(wmem_epan_scope(), "");
+    xplane_data_lookup_table[18][8] = wmem_strbuf_new(wmem_epan_scope(), "slip, degrees");
+
+    xplane_data_lookup_table[19][0] = wmem_strbuf_new(wmem_epan_scope(), "Magnetic Compass");
+    xplane_data_lookup_table[19][1] = wmem_strbuf_new(wmem_epan_scope(), "Magnetic Heading");
+    xplane_data_lookup_table[19][2] = wmem_strbuf_new(wmem_epan_scope(), "Magnetic Variation (from True)");
+    xplane_data_lookup_table[19][3] = wmem_strbuf_new(wmem_epan_scope(), "");
+    xplane_data_lookup_table[19][4] = wmem_strbuf_new(wmem_epan_scope(), "");
+    xplane_data_lookup_table[19][5] = wmem_strbuf_new(wmem_epan_scope(), "");
+    xplane_data_lookup_table[19][6] = wmem_strbuf_new(wmem_epan_scope(), "");
+    xplane_data_lookup_table[19][7] = wmem_strbuf_new(wmem_epan_scope(), "");
+    xplane_data_lookup_table[19][8] = wmem_strbuf_new(wmem_epan_scope(), "");
+
+    xplane_data_lookup_table[20][0] = wmem_strbuf_new(wmem_epan_scope(), "Global Position");
+    xplane_data_lookup_table[20][1] = wmem_strbuf_new(wmem_epan_scope(), "Latitude");
+    xplane_data_lookup_table[20][2] = wmem_strbuf_new(wmem_epan_scope(), "Longitude");
+    xplane_data_lookup_table[20][3] = wmem_strbuf_new(wmem_epan_scope(), "Altitude (ft above mean sea level)");
+    xplane_data_lookup_table[20][4] = wmem_strbuf_new(wmem_epan_scope(), "Altitude (ft above ground)");
+    xplane_data_lookup_table[20][5] = wmem_strbuf_new(wmem_epan_scope(), "Is On Runway?");
+    xplane_data_lookup_table[20][6] = wmem_strbuf_new(wmem_epan_scope(), "Indicated Altitude");
+    xplane_data_lookup_table[20][7] = wmem_strbuf_new(wmem_epan_scope(), "Latitude (bottom of containing Lat/Long scenery square)");
+    xplane_data_lookup_table[20][8] = wmem_strbuf_new(wmem_epan_scope(), "Longitude (left of containing Lat/Long scenery square)");
+
+    xplane_data_lookup_table[21][0] = wmem_strbuf_new(wmem_epan_scope(), "Distances Travelled");
+    xplane_data_lookup_table[21][1] = wmem_strbuf_new(wmem_epan_scope(), "X - relative to inertial axes");
+    xplane_data_lookup_table[21][2] = wmem_strbuf_new(wmem_epan_scope(), "Y - relative to inertial axes");
+    xplane_data_lookup_table[21][3] = wmem_strbuf_new(wmem_epan_scope(), "Z - relative to inertial axes");
+    xplane_data_lookup_table[21][4] = wmem_strbuf_new(wmem_epan_scope(), "vX (m/s) - relative to inertial axes");
+    xplane_data_lookup_table[21][5] = wmem_strbuf_new(wmem_epan_scope(), "vY (m/s) - relative to inertial axes");
+    xplane_data_lookup_table[21][6] = wmem_strbuf_new(wmem_epan_scope(), "vZ (m/s) - relative to inertial axes");
+    xplane_data_lookup_table[21][7] = wmem_strbuf_new(wmem_epan_scope(), "Distance (feet)");
+    xplane_data_lookup_table[21][8] = wmem_strbuf_new(wmem_epan_scope(), "Distance (nm)");
+
+    xplane_data_lookup_table[22][0] = wmem_strbuf_new(wmem_epan_scope(), "All Planes Latitude (A = User Aircraft)");
+    xplane_data_lookup_table[23][0] = wmem_strbuf_new(wmem_epan_scope(), "All Planes Longitude (A = User Aircraft)");
+    xplane_data_lookup_table[24][0] = wmem_strbuf_new(wmem_epan_scope(), "All Planes Altitude (feet above mean sea level) (A = User Aircraft)");
+    xplane_data_lookup_table[25][0] = wmem_strbuf_new(wmem_epan_scope(), "Throttle - Requested");
+    xplane_data_lookup_table[26][0] = wmem_strbuf_new(wmem_epan_scope(), "Throttle - Actual");
+    xplane_data_lookup_table[27][0] = wmem_strbuf_new(wmem_epan_scope(), "Engine Mode (0=Feather, 1=Normal, 2-Beta and 3=Reverse)");
+    xplane_data_lookup_table[28][0] = wmem_strbuf_new(wmem_epan_scope(), "Propeller setting");
+    xplane_data_lookup_table[29][0] = wmem_strbuf_new(wmem_epan_scope(), "Mixture setting");
+    xplane_data_lookup_table[30][0] = wmem_strbuf_new(wmem_epan_scope(), "Carb heat");
+    xplane_data_lookup_table[31][0] = wmem_strbuf_new(wmem_epan_scope(), "Cowl flaps");
+    xplane_data_lookup_table[32][0] = wmem_strbuf_new(wmem_epan_scope(), "Magnetos");
+    xplane_data_lookup_table[33][0] = wmem_strbuf_new(wmem_epan_scope(), "Starter timeout");
+    xplane_data_lookup_table[34][0] = wmem_strbuf_new(wmem_epan_scope(), "Engine power");
+    xplane_data_lookup_table[35][0] = wmem_strbuf_new(wmem_epan_scope(), "Engine thrust");
+    xplane_data_lookup_table[36][0] = wmem_strbuf_new(wmem_epan_scope(), "Engine torque");
+    xplane_data_lookup_table[37][0] = wmem_strbuf_new(wmem_epan_scope(), "Engine RPM");
+    xplane_data_lookup_table[38][0] = wmem_strbuf_new(wmem_epan_scope(), "Propeller RPM");
+    xplane_data_lookup_table[39][0] = wmem_strbuf_new(wmem_epan_scope(), "Propeller Pitch");
+    xplane_data_lookup_table[40][0] = wmem_strbuf_new(wmem_epan_scope(), "Engine Wash");
+    xplane_data_lookup_table[41][0] = wmem_strbuf_new(wmem_epan_scope(), "N1");
+    xplane_data_lookup_table[42][0] = wmem_strbuf_new(wmem_epan_scope(), "N2");
+    xplane_data_lookup_table[43][0] = wmem_strbuf_new(wmem_epan_scope(), "Manifold pressure");
+    xplane_data_lookup_table[44][0] = wmem_strbuf_new(wmem_epan_scope(), "EPR");
+    xplane_data_lookup_table[45][0] = wmem_strbuf_new(wmem_epan_scope(), "Fuel Flow");
+    xplane_data_lookup_table[46][0] = wmem_strbuf_new(wmem_epan_scope(), "ITT");
+    xplane_data_lookup_table[47][0] = wmem_strbuf_new(wmem_epan_scope(), "EGT");
+    xplane_data_lookup_table[48][0] = wmem_strbuf_new(wmem_epan_scope(), "CHT");
+    xplane_data_lookup_table[49][0] = wmem_strbuf_new(wmem_epan_scope(), "Oil pressure");
+    xplane_data_lookup_table[50][0] = wmem_strbuf_new(wmem_epan_scope(), "Oil temperature");
+    xplane_data_lookup_table[51][0] = wmem_strbuf_new(wmem_epan_scope(), "Fuel pressure");
+    xplane_data_lookup_table[52][0] = wmem_strbuf_new(wmem_epan_scope(), "Generator amps");
+    xplane_data_lookup_table[53][0] = wmem_strbuf_new(wmem_epan_scope(), "Battery amps");
+    xplane_data_lookup_table[54][0] = wmem_strbuf_new(wmem_epan_scope(), "Battery volts");
+    xplane_data_lookup_table[55][0] = wmem_strbuf_new(wmem_epan_scope(), "Electric fuel pump on/off");
+    xplane_data_lookup_table[56][0] = wmem_strbuf_new(wmem_epan_scope(), "Idle speed low/high");
+    xplane_data_lookup_table[57][0] = wmem_strbuf_new(wmem_epan_scope(), "Battery on/off");
+    xplane_data_lookup_table[58][0] = wmem_strbuf_new(wmem_epan_scope(), "Generator on/off");
+    xplane_data_lookup_table[59][0] = wmem_strbuf_new(wmem_epan_scope(), "Inverter on/off");
+    xplane_data_lookup_table[60][0] = wmem_strbuf_new(wmem_epan_scope(), "FADEC on/off");
+    xplane_data_lookup_table[61][0] = wmem_strbuf_new(wmem_epan_scope(), "Igniter on/off");
+    xplane_data_lookup_table[62][0] = wmem_strbuf_new(wmem_epan_scope(), "Fuel weights");
+
+    for (gint i = 22; i <= 62; i++)
+    {
+        for (gint j = 1; j <= 8; j++)
+        {
+            xplane_data_lookup_table[i][j] = wmem_strbuf_new(wmem_epan_scope(), "");
+        }
+    }
+
+    xplane_data_lookup_table[63][0] = wmem_strbuf_new(wmem_epan_scope(), "Aircraft Payload (lbs) and Centre of Gravity");
+    xplane_data_lookup_table[63][1] = wmem_strbuf_new(wmem_epan_scope(), "Weight Empty");
+    xplane_data_lookup_table[63][2] = wmem_strbuf_new(wmem_epan_scope(), "Weight Total");
+    xplane_data_lookup_table[63][3] = wmem_strbuf_new(wmem_epan_scope(), "Fuel Total");
+    xplane_data_lookup_table[63][4] = wmem_strbuf_new(wmem_epan_scope(), "Weight Jettisonable");
+    xplane_data_lookup_table[63][5] = wmem_strbuf_new(wmem_epan_scope(), "Weight Current");
+    xplane_data_lookup_table[63][6] = wmem_strbuf_new(wmem_epan_scope(), "Weight Maximum");
+    xplane_data_lookup_table[63][7] = wmem_strbuf_new(wmem_epan_scope(), "");
+    xplane_data_lookup_table[63][8] = wmem_strbuf_new(wmem_epan_scope(), "CoG (feet behind reference point)");
+
+    xplane_data_lookup_table[64][0] = wmem_strbuf_new(wmem_epan_scope(), "Aerodynamic Forces");
+    xplane_data_lookup_table[64][1] = wmem_strbuf_new(wmem_epan_scope(), "Lift (lbs)");
+    xplane_data_lookup_table[64][2] = wmem_strbuf_new(wmem_epan_scope(), "Drag (lbs)");
+    xplane_data_lookup_table[64][3] = wmem_strbuf_new(wmem_epan_scope(), "Side (lbs)");
+    xplane_data_lookup_table[64][4] = wmem_strbuf_new(wmem_epan_scope(), "L (ft / lbs)");
+    xplane_data_lookup_table[64][5] = wmem_strbuf_new(wmem_epan_scope(), "M (ft / lbs)");
+    xplane_data_lookup_table[64][6] = wmem_strbuf_new(wmem_epan_scope(), "N (ft / lbs)");
+    xplane_data_lookup_table[64][7] = wmem_strbuf_new(wmem_epan_scope(), "");
+    xplane_data_lookup_table[64][8] = wmem_strbuf_new(wmem_epan_scope(), "");
+
+    xplane_data_lookup_table[65][0] = wmem_strbuf_new(wmem_epan_scope(), "Engine Forces");
+    xplane_data_lookup_table[65][1] = wmem_strbuf_new(wmem_epan_scope(), "Normal (lbs)");
+    xplane_data_lookup_table[65][2] = wmem_strbuf_new(wmem_epan_scope(), "Axial (lbs)");
+    xplane_data_lookup_table[65][3] = wmem_strbuf_new(wmem_epan_scope(), "Side (lbs)");
+    xplane_data_lookup_table[65][4] = wmem_strbuf_new(wmem_epan_scope(), "");
+    xplane_data_lookup_table[65][5] = wmem_strbuf_new(wmem_epan_scope(), "");
+    xplane_data_lookup_table[65][6] = wmem_strbuf_new(wmem_epan_scope(), "");
+    xplane_data_lookup_table[65][7] = wmem_strbuf_new(wmem_epan_scope(), "");
+    xplane_data_lookup_table[65][8] = wmem_strbuf_new(wmem_epan_scope(), "");
+
+    xplane_data_lookup_table[66][0] = wmem_strbuf_new(wmem_epan_scope(), "Landing Gear Vertical Forces (lbs)");
+    xplane_data_lookup_table[66][1] = wmem_strbuf_new(wmem_epan_scope(), "Landing Gear 1 (typically nosewheel)");
+    xplane_data_lookup_table[66][2] = wmem_strbuf_new(wmem_epan_scope(), "Landing Gear 2");
+    xplane_data_lookup_table[66][3] = wmem_strbuf_new(wmem_epan_scope(), "Landing Gear 3");
+    xplane_data_lookup_table[66][4] = wmem_strbuf_new(wmem_epan_scope(), "Landing Gear 4");
+    xplane_data_lookup_table[66][5] = wmem_strbuf_new(wmem_epan_scope(), "Landing Gear 5");
+    xplane_data_lookup_table[66][6] = wmem_strbuf_new(wmem_epan_scope(), "Landing Gear 6");
+    xplane_data_lookup_table[66][7] = wmem_strbuf_new(wmem_epan_scope(), "Landing Gear 7");
+    xplane_data_lookup_table[66][8] = wmem_strbuf_new(wmem_epan_scope(), "Landing Gear 8");
+
+    xplane_data_lookup_table[67][0] = wmem_strbuf_new(wmem_epan_scope(), "Landing Gear Deployment Ratio (0=Up, 1=Down)");
+    xplane_data_lookup_table[67][1] = wmem_strbuf_new(wmem_epan_scope(), "Landing Gear 1 (typically nosewheel)");
+    xplane_data_lookup_table[67][2] = wmem_strbuf_new(wmem_epan_scope(), "Landing Gear 2");
+    xplane_data_lookup_table[67][3] = wmem_strbuf_new(wmem_epan_scope(), "Landing Gear 3");
+    xplane_data_lookup_table[67][4] = wmem_strbuf_new(wmem_epan_scope(), "Landing Gear 4");
+    xplane_data_lookup_table[67][5] = wmem_strbuf_new(wmem_epan_scope(), "Landing Gear 5");
+    xplane_data_lookup_table[67][6] = wmem_strbuf_new(wmem_epan_scope(), "Landing Gear 6");
+    xplane_data_lookup_table[67][7] = wmem_strbuf_new(wmem_epan_scope(), "Landing Gear 7");
+    xplane_data_lookup_table[67][8] = wmem_strbuf_new(wmem_epan_scope(), "Landing Gear 8");
+
+    xplane_data_lookup_table[68][0] = wmem_strbuf_new(wmem_epan_scope(), "Lift over drag and coefficients");
+    xplane_data_lookup_table[68][1] = wmem_strbuf_new(wmem_epan_scope(), "Lift/Drag Ratio");
+    xplane_data_lookup_table[68][2] = wmem_strbuf_new(wmem_epan_scope(), "");
+    xplane_data_lookup_table[68][3] = wmem_strbuf_new(wmem_epan_scope(), "cl, total");
+    xplane_data_lookup_table[68][4] = wmem_strbuf_new(wmem_epan_scope(), "cd, total");
+    xplane_data_lookup_table[68][5] = wmem_strbuf_new(wmem_epan_scope(), "");
+    xplane_data_lookup_table[68][6] = wmem_strbuf_new(wmem_epan_scope(), "");
+    xplane_data_lookup_table[68][7] = wmem_strbuf_new(wmem_epan_scope(), "");
+    xplane_data_lookup_table[68][8] = wmem_strbuf_new(wmem_epan_scope(), "Lift/Drag (*etaP)");
+
+    xplane_data_lookup_table[69][0] = wmem_strbuf_new(wmem_epan_scope(), "Propeller Efficiency");
+    for (gint i = 1; i <= 8; i++)
+    {
+        xplane_data_lookup_table[69][i] = wmem_strbuf_new(wmem_epan_scope(), "");
+    }
+
+    xplane_data_lookup_table[70][0] = wmem_strbuf_new(wmem_epan_scope(), "Aileron deflections 1");
+    xplane_data_lookup_table[71][0] = wmem_strbuf_new(wmem_epan_scope(), "Aileron deflections 2");
+    xplane_data_lookup_table[72][0] = wmem_strbuf_new(wmem_epan_scope(), "Roll spoiler deflections 1");
+    xplane_data_lookup_table[73][0] = wmem_strbuf_new(wmem_epan_scope(), "Roll spoiler deflections 2");
+    xplane_data_lookup_table[74][0] = wmem_strbuf_new(wmem_epan_scope(), "Elevator Deflections (degrees)");
+    xplane_data_lookup_table[75][0] = wmem_strbuf_new(wmem_epan_scope(), "Rudder deflections");
+    xplane_data_lookup_table[76][0] = wmem_strbuf_new(wmem_epan_scope(), "Yaw and brake deflections");
+
+    for (guint i = 1; i <= 7; i += 2)
+    {
+        xplane_data_lookup_table[70][i] = wmem_strbuf_new(wmem_epan_scope(), "Left Aileron");
+        wmem_strbuf_append_printf(xplane_data_lookup_table[70][i], " %u", i / 2);
+        xplane_data_lookup_table[71][i] = wmem_strbuf_new(wmem_epan_scope(), "Left Aileron");
+        wmem_strbuf_append_printf(xplane_data_lookup_table[71][i], " %u", (i / 2) + 4);
+        xplane_data_lookup_table[72][i] = wmem_strbuf_new(wmem_epan_scope(), "Left Roll spoiler ");
+        wmem_strbuf_append_printf(xplane_data_lookup_table[72][i], " %u", (i / 2));
+        xplane_data_lookup_table[73][i] = wmem_strbuf_new(wmem_epan_scope(), "Left Roll spoiler ");
+        wmem_strbuf_append_printf(xplane_data_lookup_table[73][i], " %u", (i / 2) + 4);
+        xplane_data_lookup_table[74][i] = wmem_strbuf_new(wmem_epan_scope(), "Left Elevator ");
+        wmem_strbuf_append_printf(xplane_data_lookup_table[74][i], " %u", (i / 2));
+        xplane_data_lookup_table[75][i] = wmem_strbuf_new(wmem_epan_scope(), "Left Rudder ");
+        wmem_strbuf_append_printf(xplane_data_lookup_table[75][i], " %u", (i / 2));
+        xplane_data_lookup_table[76][i] = wmem_strbuf_new(wmem_epan_scope(), "Left Yaw Brake ");
+        wmem_strbuf_append_printf(xplane_data_lookup_table[76][i], " %u", (i / 2));
+    }
+    for (guint i = 2; i <= 8; i += 2)
+    {
+        xplane_data_lookup_table[70][i] = wmem_strbuf_new(wmem_epan_scope(), "Right Aileron");
+        wmem_strbuf_append_printf(xplane_data_lookup_table[70][i], " %u", i / 2);
+        xplane_data_lookup_table[71][i] = wmem_strbuf_new(wmem_epan_scope(), "Right Aileron");
+        wmem_strbuf_append_printf(xplane_data_lookup_table[71][i], " %u", (i / 2) + 4);
+        xplane_data_lookup_table[72][i] = wmem_strbuf_new(wmem_epan_scope(), "Right Roll spoiler ");
+        wmem_strbuf_append_printf(xplane_data_lookup_table[72][i], " %u", (i / 2));
+        xplane_data_lookup_table[73][i] = wmem_strbuf_new(wmem_epan_scope(), "Right Roll spoiler ");
+        wmem_strbuf_append_printf(xplane_data_lookup_table[73][i], " %u", (i / 2) + 4);
+        xplane_data_lookup_table[74][i] = wmem_strbuf_new(wmem_epan_scope(), "Right Elevator ");
+        wmem_strbuf_append_printf(xplane_data_lookup_table[74][i], " %u", (i / 2));
+        xplane_data_lookup_table[75][i] = wmem_strbuf_new(wmem_epan_scope(), "Right Rudder ");
+        wmem_strbuf_append_printf(xplane_data_lookup_table[75][i], " %u", (i / 2));
+        xplane_data_lookup_table[76][i] = wmem_strbuf_new(wmem_epan_scope(), "Right Yaw Brake ");
+        wmem_strbuf_append_printf(xplane_data_lookup_table[76][i], " %u", (i / 2));
+    }
+    xplane_data_lookup_table[77][0] = wmem_strbuf_new(wmem_epan_scope(), "Control Forces on Pilot's Hands (lbs)");
+    xplane_data_lookup_table[77][1] = wmem_strbuf_new(wmem_epan_scope(), "Pitch");
+    xplane_data_lookup_table[77][2] = wmem_strbuf_new(wmem_epan_scope(), "Roll");
+    xplane_data_lookup_table[77][3] = wmem_strbuf_new(wmem_epan_scope(), "Heading");
+    xplane_data_lookup_table[77][4] = wmem_strbuf_new(wmem_epan_scope(), "Left-Brake");
+    xplane_data_lookup_table[77][5] = wmem_strbuf_new(wmem_epan_scope(), "Right-Brake");
+    xplane_data_lookup_table[77][6] = wmem_strbuf_new(wmem_epan_scope(), "");
+    xplane_data_lookup_table[77][7] = wmem_strbuf_new(wmem_epan_scope(), "");
+    xplane_data_lookup_table[77][8] = wmem_strbuf_new(wmem_epan_scope(), "");
+
+    xplane_data_lookup_table[78][0] = wmem_strbuf_new(wmem_epan_scope(), "Total Vertical Thrust Vectors");
+    xplane_data_lookup_table[79][0] = wmem_strbuf_new(wmem_epan_scope(), "Total lateral thrust vectors");
+    xplane_data_lookup_table[80][0] = wmem_strbuf_new(wmem_epan_scope(), "Pitch cyclic disc tilts");
+    xplane_data_lookup_table[81][0] = wmem_strbuf_new(wmem_epan_scope(), "Roll cyclic disc tilts");
+    xplane_data_lookup_table[82][0] = wmem_strbuf_new(wmem_epan_scope(), "Pitch cyclic flapping");
+    xplane_data_lookup_table[83][0] = wmem_strbuf_new(wmem_epan_scope(), "Roll cyclic flapping");
+    for (guint i = 1; i <= 8; i++)
+    {
+        xplane_data_lookup_table[78][i] = wmem_strbuf_new(wmem_epan_scope(), "Vertical Thrust Vectors ");
+        xplane_data_lookup_table[79][i] = wmem_strbuf_new(wmem_epan_scope(), "Lateral thrust vectors ");
+        xplane_data_lookup_table[80][i] = wmem_strbuf_new(wmem_epan_scope(), "Pitch cyclic disc tilts ");
+        xplane_data_lookup_table[81][i] = wmem_strbuf_new(wmem_epan_scope(), "Roll cyclic disc tilts ");
+        xplane_data_lookup_table[82][i] = wmem_strbuf_new(wmem_epan_scope(), "Pitch cyclic flapping ");
+        xplane_data_lookup_table[83][i] = wmem_strbuf_new(wmem_epan_scope(), "Roll cyclic flapping ");
+    }
+
+    xplane_data_lookup_table[84][0] = wmem_strbuf_new(wmem_epan_scope(), "Ground Effect lift (wings)");
+    xplane_data_lookup_table[84][1] = wmem_strbuf_new(wmem_epan_scope(), "Wing1 L cl*");
+    xplane_data_lookup_table[84][2] = wmem_strbuf_new(wmem_epan_scope(), "Wing1 R cl*");
+    xplane_data_lookup_table[84][3] = wmem_strbuf_new(wmem_epan_scope(), "Wing2 L cl*");
+    xplane_data_lookup_table[84][4] = wmem_strbuf_new(wmem_epan_scope(), "Wing2 R cl*");
+    xplane_data_lookup_table[84][5] = wmem_strbuf_new(wmem_epan_scope(), "Wing3 L cl*");
+    xplane_data_lookup_table[84][6] = wmem_strbuf_new(wmem_epan_scope(), "Wing3 R cl*");
+    xplane_data_lookup_table[84][7] = wmem_strbuf_new(wmem_epan_scope(), "Wing4 L cl*");
+    xplane_data_lookup_table[84][8] = wmem_strbuf_new(wmem_epan_scope(), "Wing4 R cl*");
+
+    xplane_data_lookup_table[85][0] = wmem_strbuf_new(wmem_epan_scope(), "Ground Effect drag (wings)");
+    xplane_data_lookup_table[85][1] = wmem_strbuf_new(wmem_epan_scope(), "Wing1 Lcdi*");
+    xplane_data_lookup_table[85][2] = wmem_strbuf_new(wmem_epan_scope(), "Wing1 Rcdi*");
+    xplane_data_lookup_table[85][3] = wmem_strbuf_new(wmem_epan_scope(), "Wing2 Lcdi*");
+    xplane_data_lookup_table[85][4] = wmem_strbuf_new(wmem_epan_scope(), "Wing2 Rcdi*");
+    xplane_data_lookup_table[85][5] = wmem_strbuf_new(wmem_epan_scope(), "Wing3 Lcdi*");
+    xplane_data_lookup_table[85][6] = wmem_strbuf_new(wmem_epan_scope(), "Wing3 Rcdi*");
+    xplane_data_lookup_table[85][7] = wmem_strbuf_new(wmem_epan_scope(), "Wing4 Lcdi*");
+    xplane_data_lookup_table[85][8] = wmem_strbuf_new(wmem_epan_scope(), "Wing4 Rcdi*");
+
+    xplane_data_lookup_table[86][0] = wmem_strbuf_new(wmem_epan_scope(), "Ground Effect wash (wings)");
+    xplane_data_lookup_table[86][1] = wmem_strbuf_new(wmem_epan_scope(), "Wing1 wash*");
+    xplane_data_lookup_table[86][2] = wmem_strbuf_new(wmem_epan_scope(), "Wing1 wash*");
+    xplane_data_lookup_table[86][3] = wmem_strbuf_new(wmem_epan_scope(), "Wing2 wash*");
+    xplane_data_lookup_table[86][4] = wmem_strbuf_new(wmem_epan_scope(), "Wing2 wash*");
+    xplane_data_lookup_table[86][5] = wmem_strbuf_new(wmem_epan_scope(), "Wing3 wash*");
+    xplane_data_lookup_table[86][6] = wmem_strbuf_new(wmem_epan_scope(), "Wing3 wash*");
+    xplane_data_lookup_table[86][7] = wmem_strbuf_new(wmem_epan_scope(), "Wing4 wash*");
+    xplane_data_lookup_table[86][8] = wmem_strbuf_new(wmem_epan_scope(), "Wing4 wash*");
+
+    xplane_data_lookup_table[87][0] = wmem_strbuf_new(wmem_epan_scope(), "Ground Effect lift (stabilisers)");
+    xplane_data_lookup_table[87][1] = wmem_strbuf_new(wmem_epan_scope(), "hstab L cl*");
+    xplane_data_lookup_table[87][2] = wmem_strbuf_new(wmem_epan_scope(), "hstab R cl*");
+    xplane_data_lookup_table[87][3] = wmem_strbuf_new(wmem_epan_scope(), "vstb1 cl*");
+    xplane_data_lookup_table[87][4] = wmem_strbuf_new(wmem_epan_scope(), "vstb2 cl*");
+    xplane_data_lookup_table[87][5] = wmem_strbuf_new(wmem_epan_scope(), "");
+    xplane_data_lookup_table[87][6] = wmem_strbuf_new(wmem_epan_scope(), "");
+    xplane_data_lookup_table[87][7] = wmem_strbuf_new(wmem_epan_scope(), "");
+    xplane_data_lookup_table[87][8] = wmem_strbuf_new(wmem_epan_scope(), "");
+
+    xplane_data_lookup_table[88][0] = wmem_strbuf_new(wmem_epan_scope(), "Ground Effect drag (stabilisers)");
+    xplane_data_lookup_table[88][1] = wmem_strbuf_new(wmem_epan_scope(), "hstab Lcdi*");
+    xplane_data_lookup_table[88][2] = wmem_strbuf_new(wmem_epan_scope(), "hstab Rcdi*");
+    xplane_data_lookup_table[88][3] = wmem_strbuf_new(wmem_epan_scope(), "vstb1 cdi*");
+    xplane_data_lookup_table[88][4] = wmem_strbuf_new(wmem_epan_scope(), "vstb2 cdi*");
+    xplane_data_lookup_table[88][5] = wmem_strbuf_new(wmem_epan_scope(), "");
+    xplane_data_lookup_table[88][6] = wmem_strbuf_new(wmem_epan_scope(), "");
+    xplane_data_lookup_table[88][7] = wmem_strbuf_new(wmem_epan_scope(), "");
+    xplane_data_lookup_table[88][8] = wmem_strbuf_new(wmem_epan_scope(), "");
+
+    xplane_data_lookup_table[89][0] = wmem_strbuf_new(wmem_epan_scope(), "Ground Effect wash (stabilisers)");
+    xplane_data_lookup_table[89][1] = wmem_strbuf_new(wmem_epan_scope(), "hstab wash*");
+    xplane_data_lookup_table[89][2] = wmem_strbuf_new(wmem_epan_scope(), "hstab wash*");
+    xplane_data_lookup_table[89][3] = wmem_strbuf_new(wmem_epan_scope(), "vstb1 wash*");
+    xplane_data_lookup_table[89][4] = wmem_strbuf_new(wmem_epan_scope(), "vstb2 wash*");
+    xplane_data_lookup_table[89][5] = wmem_strbuf_new(wmem_epan_scope(), "");
+    xplane_data_lookup_table[89][6] = wmem_strbuf_new(wmem_epan_scope(), "");
+    xplane_data_lookup_table[89][7] = wmem_strbuf_new(wmem_epan_scope(), "");
+    xplane_data_lookup_table[89][8] = wmem_strbuf_new(wmem_epan_scope(), "");
+
+    xplane_data_lookup_table[90][0] = wmem_strbuf_new(wmem_epan_scope(), "Wash ratio from Ground Effect (rotors)");
+    xplane_data_lookup_table[90][1] = wmem_strbuf_new(wmem_epan_scope(), "GE rotor 1 wash*");
+    xplane_data_lookup_table[90][2] = wmem_strbuf_new(wmem_epan_scope(), "GE rotor 2 wash*");
+    xplane_data_lookup_table[90][3] = wmem_strbuf_new(wmem_epan_scope(), "GE rotor 3 wash*");
+    xplane_data_lookup_table[90][4] = wmem_strbuf_new(wmem_epan_scope(), "GE rotor 4 wash*");
+    xplane_data_lookup_table[90][5] = wmem_strbuf_new(wmem_epan_scope(), "GE rotor 5 wash*");
+    xplane_data_lookup_table[90][6] = wmem_strbuf_new(wmem_epan_scope(), "GE rotor 6 wash*");
+    xplane_data_lookup_table[90][7] = wmem_strbuf_new(wmem_epan_scope(), "GE rotor 7 wash*");
+    xplane_data_lookup_table[90][8] = wmem_strbuf_new(wmem_epan_scope(), "GE rotor 8 wash*");
+
+    xplane_data_lookup_table[91][0] = wmem_strbuf_new(wmem_epan_scope(), "Wash ratio from Vortex Effect (rotors)");
+    xplane_data_lookup_table[91][1] = wmem_strbuf_new(wmem_epan_scope(), "VRS rotor 1 wash*");
+    xplane_data_lookup_table[91][2] = wmem_strbuf_new(wmem_epan_scope(), "VRS rotor 2 wash*");
+    xplane_data_lookup_table[91][3] = wmem_strbuf_new(wmem_epan_scope(), "VRS rotor 3 wash*");
+    xplane_data_lookup_table[91][4] = wmem_strbuf_new(wmem_epan_scope(), "VRS rotor 4 wash*");
+    xplane_data_lookup_table[91][5] = wmem_strbuf_new(wmem_epan_scope(), "VRS rotor 5 wash*");
+    xplane_data_lookup_table[91][6] = wmem_strbuf_new(wmem_epan_scope(), "VRS rotor 6 wash*");
+    xplane_data_lookup_table[91][7] = wmem_strbuf_new(wmem_epan_scope(), "VRS rotor 7 wash*");
+    xplane_data_lookup_table[91][8] = wmem_strbuf_new(wmem_epan_scope(), "VRS rotor 8 wash*");
+
+    xplane_data_lookup_table[92][0] = wmem_strbuf_new(wmem_epan_scope(), "Wing lift");
+    xplane_data_lookup_table[92][1] = wmem_strbuf_new(wmem_epan_scope(), "Wing1 lift");
+    xplane_data_lookup_table[92][2] = wmem_strbuf_new(wmem_epan_scope(), "Wing1 lift");
+    xplane_data_lookup_table[92][3] = wmem_strbuf_new(wmem_epan_scope(), "Wing2 lift");
+    xplane_data_lookup_table[92][4] = wmem_strbuf_new(wmem_epan_scope(), "Wing2 lift");
+    xplane_data_lookup_table[92][5] = wmem_strbuf_new(wmem_epan_scope(), "Wing3 lift");
+    xplane_data_lookup_table[92][6] = wmem_strbuf_new(wmem_epan_scope(), "Wing3 lift");
+    xplane_data_lookup_table[92][7] = wmem_strbuf_new(wmem_epan_scope(), "Wing4 lift");
+    xplane_data_lookup_table[92][8] = wmem_strbuf_new(wmem_epan_scope(), "Wing4 lift");
+
+    xplane_data_lookup_table[93][0] = wmem_strbuf_new(wmem_epan_scope(), "Wing drag");
+    xplane_data_lookup_table[93][1] = wmem_strbuf_new(wmem_epan_scope(), "Wing1 drag");
+    xplane_data_lookup_table[93][2] = wmem_strbuf_new(wmem_epan_scope(), "Wing1 drag");
+    xplane_data_lookup_table[93][3] = wmem_strbuf_new(wmem_epan_scope(), "Wing2 drag");
+    xplane_data_lookup_table[93][4] = wmem_strbuf_new(wmem_epan_scope(), "Wing2 drag");
+    xplane_data_lookup_table[93][5] = wmem_strbuf_new(wmem_epan_scope(), "Wing3 drag");
+    xplane_data_lookup_table[93][6] = wmem_strbuf_new(wmem_epan_scope(), "Wing3 drag");
+    xplane_data_lookup_table[93][7] = wmem_strbuf_new(wmem_epan_scope(), "Wing4 drag");
+    xplane_data_lookup_table[93][8] = wmem_strbuf_new(wmem_epan_scope(), "Wing4 drag");
+
+    xplane_data_lookup_table[94][0] = wmem_strbuf_new(wmem_epan_scope(), "Stabilizer lift");
+    xplane_data_lookup_table[94][1] = wmem_strbuf_new(wmem_epan_scope(), "hstab lift");
+    xplane_data_lookup_table[94][2] = wmem_strbuf_new(wmem_epan_scope(), "hstab lift");
+    xplane_data_lookup_table[94][3] = wmem_strbuf_new(wmem_epan_scope(), "vstb1 lift");
+    xplane_data_lookup_table[94][4] = wmem_strbuf_new(wmem_epan_scope(), "vstb2 lift");
+    xplane_data_lookup_table[94][5] = wmem_strbuf_new(wmem_epan_scope(), "");
+    xplane_data_lookup_table[94][6] = wmem_strbuf_new(wmem_epan_scope(), "");
+    xplane_data_lookup_table[94][7] = wmem_strbuf_new(wmem_epan_scope(), "");
+    xplane_data_lookup_table[94][8] = wmem_strbuf_new(wmem_epan_scope(), "");
+
+    xplane_data_lookup_table[95][0] = wmem_strbuf_new(wmem_epan_scope(), "Stabilizer drag");
+    xplane_data_lookup_table[95][1] = wmem_strbuf_new(wmem_epan_scope(), "hstab drag");
+    xplane_data_lookup_table[95][2] = wmem_strbuf_new(wmem_epan_scope(), "hstab drag");
+    xplane_data_lookup_table[95][3] = wmem_strbuf_new(wmem_epan_scope(), "vstb1 drag");
+    xplane_data_lookup_table[95][4] = wmem_strbuf_new(wmem_epan_scope(), "vstb2 drag");
+    xplane_data_lookup_table[95][5] = wmem_strbuf_new(wmem_epan_scope(), "");
+    xplane_data_lookup_table[95][6] = wmem_strbuf_new(wmem_epan_scope(), "");
+    xplane_data_lookup_table[95][7] = wmem_strbuf_new(wmem_epan_scope(), "");
+    xplane_data_lookup_table[95][8] = wmem_strbuf_new(wmem_epan_scope(), "");
+
+    xplane_data_lookup_table[96][0] = wmem_strbuf_new(wmem_epan_scope(), "COM1 and COM2 radio freqs");
+    xplane_data_lookup_table[96][1] = wmem_strbuf_new(wmem_epan_scope(), "COM1 Active");
+    xplane_data_lookup_table[96][2] = wmem_strbuf_new(wmem_epan_scope(), "COM1 Standby");
+    xplane_data_lookup_table[96][3] = wmem_strbuf_new(wmem_epan_scope(), "");
+    xplane_data_lookup_table[96][4] = wmem_strbuf_new(wmem_epan_scope(), "COM2 Active");
+    xplane_data_lookup_table[96][5] = wmem_strbuf_new(wmem_epan_scope(), "COM2 Standby");
+    xplane_data_lookup_table[96][6] = wmem_strbuf_new(wmem_epan_scope(), "");
+    xplane_data_lookup_table[96][7] = wmem_strbuf_new(wmem_epan_scope(), "Transmit Status");
+    xplane_data_lookup_table[96][8] = wmem_strbuf_new(wmem_epan_scope(), "");
+
+    xplane_data_lookup_table[97][0] = wmem_strbuf_new(wmem_epan_scope(), "NAV1 and NAV2 radio freqs");
+    xplane_data_lookup_table[97][1] = wmem_strbuf_new(wmem_epan_scope(), "NAV1 Active");
+    xplane_data_lookup_table[97][2] = wmem_strbuf_new(wmem_epan_scope(), "NAV1 Standby");
+    xplane_data_lookup_table[97][3] = wmem_strbuf_new(wmem_epan_scope(), "NAV1 Type");
+    xplane_data_lookup_table[97][4] = wmem_strbuf_new(wmem_epan_scope(), "");
+    xplane_data_lookup_table[97][5] = wmem_strbuf_new(wmem_epan_scope(), "NAV2 Active");
+    xplane_data_lookup_table[97][6] = wmem_strbuf_new(wmem_epan_scope(), "NAV2 Standby");
+    xplane_data_lookup_table[97][7] = wmem_strbuf_new(wmem_epan_scope(), "NAV2 Type");
+    xplane_data_lookup_table[97][8] = wmem_strbuf_new(wmem_epan_scope(), "");
+
+    xplane_data_lookup_table[98][0] = wmem_strbuf_new(wmem_epan_scope(), "NAV1 and NAV2 OBS");
+    xplane_data_lookup_table[98][1] = wmem_strbuf_new(wmem_epan_scope(), "NAV1 OBS");
+    xplane_data_lookup_table[98][2] = wmem_strbuf_new(wmem_epan_scope(), "NAV1 s-crs");
+    xplane_data_lookup_table[98][3] = wmem_strbuf_new(wmem_epan_scope(), "NAV1 flag");
+    xplane_data_lookup_table[98][4] = wmem_strbuf_new(wmem_epan_scope(), "");
+    xplane_data_lookup_table[98][5] = wmem_strbuf_new(wmem_epan_scope(), "NAV2 OBS");
+    xplane_data_lookup_table[98][6] = wmem_strbuf_new(wmem_epan_scope(), "NAV2 s-crs");
+    xplane_data_lookup_table[98][7] = wmem_strbuf_new(wmem_epan_scope(), "NAV2 flag");
+    xplane_data_lookup_table[98][8] = wmem_strbuf_new(wmem_epan_scope(), "");
+
+    xplane_data_lookup_table[99][0] = wmem_strbuf_new(wmem_epan_scope(), "NAV1 deflection");
+    xplane_data_lookup_table[99][1] = wmem_strbuf_new(wmem_epan_scope(), "NAV1 n-typ");
+    xplane_data_lookup_table[99][2] = wmem_strbuf_new(wmem_epan_scope(), "NAV1 to-fr");
+    xplane_data_lookup_table[99][3] = wmem_strbuf_new(wmem_epan_scope(), "NAV1 m-crs");
+    xplane_data_lookup_table[99][4] = wmem_strbuf_new(wmem_epan_scope(), "NAV1 r-brg");
+    xplane_data_lookup_table[99][5] = wmem_strbuf_new(wmem_epan_scope(), "NAV1 dme-d");
+    xplane_data_lookup_table[99][6] = wmem_strbuf_new(wmem_epan_scope(), "NAV1 h-def");
+    xplane_data_lookup_table[99][7] = wmem_strbuf_new(wmem_epan_scope(), "NAV1 v-def");
+    xplane_data_lookup_table[99][8] = wmem_strbuf_new(wmem_epan_scope(), "");
+
+    xplane_data_lookup_table[100][0] = wmem_strbuf_new(wmem_epan_scope(), "NAV2 deflection");
+    xplane_data_lookup_table[100][1] = wmem_strbuf_new(wmem_epan_scope(), "NAV2 n-typ");
+    xplane_data_lookup_table[100][2] = wmem_strbuf_new(wmem_epan_scope(), "NAV2 to-fr");
+    xplane_data_lookup_table[100][3] = wmem_strbuf_new(wmem_epan_scope(), "NAV2 m-crs");
+    xplane_data_lookup_table[100][4] = wmem_strbuf_new(wmem_epan_scope(), "NAV2 r-brg");
+    xplane_data_lookup_table[100][5] = wmem_strbuf_new(wmem_epan_scope(), "NAV2 dme-d");
+    xplane_data_lookup_table[100][6] = wmem_strbuf_new(wmem_epan_scope(), "NAV2 h-def");
+    xplane_data_lookup_table[100][7] = wmem_strbuf_new(wmem_epan_scope(), "NAV2 v-def");
+    xplane_data_lookup_table[100][8] = wmem_strbuf_new(wmem_epan_scope(), "");
+
+    xplane_data_lookup_table[101][0] = wmem_strbuf_new(wmem_epan_scope(), "ADF1 and ADF2 statuses");
+    xplane_data_lookup_table[101][1] = wmem_strbuf_new(wmem_epan_scope(), "ACF1 frequency");
+    xplane_data_lookup_table[101][2] = wmem_strbuf_new(wmem_epan_scope(), "ADF1 card");
+    xplane_data_lookup_table[101][3] = wmem_strbuf_new(wmem_epan_scope(), "ADF1 r-brg");
+    xplane_data_lookup_table[101][4] = wmem_strbuf_new(wmem_epan_scope(), "ADF1 n-typ");
+    xplane_data_lookup_table[101][5] = wmem_strbuf_new(wmem_epan_scope(), "ACF2 frequency");
+    xplane_data_lookup_table[101][6] = wmem_strbuf_new(wmem_epan_scope(), "ADF2 card");
+    xplane_data_lookup_table[101][7] = wmem_strbuf_new(wmem_epan_scope(), "ADF2 r-brg");
+    xplane_data_lookup_table[101][8] = wmem_strbuf_new(wmem_epan_scope(), "ADF2 n-typ");
+
+    xplane_data_lookup_table[102][0] = wmem_strbuf_new(wmem_epan_scope(), "DME status");
+    xplane_data_lookup_table[102][1] = wmem_strbuf_new(wmem_epan_scope(), "DME nav01");
+    xplane_data_lookup_table[102][2] = wmem_strbuf_new(wmem_epan_scope(), "DME mode");
+    xplane_data_lookup_table[102][3] = wmem_strbuf_new(wmem_epan_scope(), "DME found");
+    xplane_data_lookup_table[102][4] = wmem_strbuf_new(wmem_epan_scope(), "DME dist");
+    xplane_data_lookup_table[102][5] = wmem_strbuf_new(wmem_epan_scope(), "DME speed");
+    xplane_data_lookup_table[102][6] = wmem_strbuf_new(wmem_epan_scope(), "DME time");
+    xplane_data_lookup_table[102][7] = wmem_strbuf_new(wmem_epan_scope(), "DME n-typ");
+    xplane_data_lookup_table[102][8] = wmem_strbuf_new(wmem_epan_scope(), "DME-3 freq");
+
+    xplane_data_lookup_table[103][0] = wmem_strbuf_new(wmem_epan_scope(), "GPS status");
+    xplane_data_lookup_table[103][1] = wmem_strbuf_new(wmem_epan_scope(), "GPS mode");
+    xplane_data_lookup_table[103][2] = wmem_strbuf_new(wmem_epan_scope(), "GPS index");
+    xplane_data_lookup_table[103][3] = wmem_strbuf_new(wmem_epan_scope(), "GPS dist - nm");
+    xplane_data_lookup_table[103][4] = wmem_strbuf_new(wmem_epan_scope(), "OSB mag");
+    xplane_data_lookup_table[103][5] = wmem_strbuf_new(wmem_epan_scope(), "crs mag");
+    xplane_data_lookup_table[103][6] = wmem_strbuf_new(wmem_epan_scope(), "rel brng");
+    xplane_data_lookup_table[103][7] = wmem_strbuf_new(wmem_epan_scope(), "hdef dots");
+    xplane_data_lookup_table[103][8] = wmem_strbuf_new(wmem_epan_scope(), "vdef dots");
+
+    xplane_data_lookup_table[104][0] = wmem_strbuf_new(wmem_epan_scope(), "Transponder status");
+    xplane_data_lookup_table[104][1] = wmem_strbuf_new(wmem_epan_scope(), "trans mode");
+    xplane_data_lookup_table[104][2] = wmem_strbuf_new(wmem_epan_scope(), "trans sett");
+    xplane_data_lookup_table[104][3] = wmem_strbuf_new(wmem_epan_scope(), "trans ID");
+    xplane_data_lookup_table[104][4] = wmem_strbuf_new(wmem_epan_scope(), "trans inter");
+    xplane_data_lookup_table[104][5] = wmem_strbuf_new(wmem_epan_scope(), "");
+    xplane_data_lookup_table[104][6] = wmem_strbuf_new(wmem_epan_scope(), "");
+    xplane_data_lookup_table[104][7] = wmem_strbuf_new(wmem_epan_scope(), "");
+    xplane_data_lookup_table[104][8] = wmem_strbuf_new(wmem_epan_scope(), "");
+
+    xplane_data_lookup_table[105][0] = wmem_strbuf_new(wmem_epan_scope(), "Marker staus");
+    xplane_data_lookup_table[105][1] = wmem_strbuf_new(wmem_epan_scope(), "Outer Marker - morse");
+    xplane_data_lookup_table[105][2] = wmem_strbuf_new(wmem_epan_scope(), "Middle Marker - morse");
+    xplane_data_lookup_table[105][3] = wmem_strbuf_new(wmem_epan_scope(), "Inner Marker - morse");
+    xplane_data_lookup_table[105][4] = wmem_strbuf_new(wmem_epan_scope(), "audio - active");
+    xplane_data_lookup_table[105][5] = wmem_strbuf_new(wmem_epan_scope(), "");
+    xplane_data_lookup_table[105][6] = wmem_strbuf_new(wmem_epan_scope(), "");
+    xplane_data_lookup_table[105][7] = wmem_strbuf_new(wmem_epan_scope(), "");
+    xplane_data_lookup_table[105][8] = wmem_strbuf_new(wmem_epan_scope(), "");
+
+    xplane_data_lookup_table[106][0] = wmem_strbuf_new(wmem_epan_scope(), "Electrical switches");
+    xplane_data_lookup_table[106][1] = wmem_strbuf_new(wmem_epan_scope(), "avio 0/1");
+    xplane_data_lookup_table[106][2] = wmem_strbuf_new(wmem_epan_scope(), "Navigation Lights (0/1)");
+    xplane_data_lookup_table[106][3] = wmem_strbuf_new(wmem_epan_scope(), "Beacon Light (0/1)");
+    xplane_data_lookup_table[106][4] = wmem_strbuf_new(wmem_epan_scope(), "Strob Light (0/1)");
+    xplane_data_lookup_table[106][5] = wmem_strbuf_new(wmem_epan_scope(), "Landing Lights (0/1)");
+    xplane_data_lookup_table[106][6] = wmem_strbuf_new(wmem_epan_scope(), "Taxi Lights (0/1)");
+    xplane_data_lookup_table[106][7] = wmem_strbuf_new(wmem_epan_scope(), "");
+    xplane_data_lookup_table[106][8] = wmem_strbuf_new(wmem_epan_scope(), "");
+
+    xplane_data_lookup_table[107][0] = wmem_strbuf_new(wmem_epan_scope(), "EFIS switches");
+    xplane_data_lookup_table[107][1] = wmem_strbuf_new(wmem_epan_scope(), "ECAM mode`");
+    xplane_data_lookup_table[107][2] = wmem_strbuf_new(wmem_epan_scope(), "EFIS sel 1");
+    xplane_data_lookup_table[107][3] = wmem_strbuf_new(wmem_epan_scope(), "EFIS sel 2");
+    xplane_data_lookup_table[107][4] = wmem_strbuf_new(wmem_epan_scope(), "HSI sel 1");
+    xplane_data_lookup_table[107][5] = wmem_strbuf_new(wmem_epan_scope(), "HSI sel 2");
+    xplane_data_lookup_table[107][6] = wmem_strbuf_new(wmem_epan_scope(), "HSI arc");
+    xplane_data_lookup_table[107][7] = wmem_strbuf_new(wmem_epan_scope(), "map r-sel");
+    xplane_data_lookup_table[107][8] = wmem_strbuf_new(wmem_epan_scope(), "map range");
+
+    xplane_data_lookup_table[108][0] = wmem_strbuf_new(wmem_epan_scope(), "AP, FD, HUD switches");
+    xplane_data_lookup_table[108][1] = wmem_strbuf_new(wmem_epan_scope(), "Ap - src");
+    xplane_data_lookup_table[108][2] = wmem_strbuf_new(wmem_epan_scope(), "fdir - mode");
+    xplane_data_lookup_table[108][3] = wmem_strbuf_new(wmem_epan_scope(), "fdir - ptch");
+    xplane_data_lookup_table[108][4] = wmem_strbuf_new(wmem_epan_scope(), "fdir - roll");
+    xplane_data_lookup_table[108][5] = wmem_strbuf_new(wmem_epan_scope(), "");
+    xplane_data_lookup_table[108][6] = wmem_strbuf_new(wmem_epan_scope(), "HUD power");
+    xplane_data_lookup_table[108][7] = wmem_strbuf_new(wmem_epan_scope(), "HUD brite");
+    xplane_data_lookup_table[108][8] = wmem_strbuf_new(wmem_epan_scope(), "");
+
+    xplane_data_lookup_table[109][0] = wmem_strbuf_new(wmem_epan_scope(), "Anti-ice switches");
+    xplane_data_lookup_table[109][1] = wmem_strbuf_new(wmem_epan_scope(), "deice - all");
+    xplane_data_lookup_table[109][2] = wmem_strbuf_new(wmem_epan_scope(), "deice inlet");
+    xplane_data_lookup_table[109][3] = wmem_strbuf_new(wmem_epan_scope(), "deice prop");
+    xplane_data_lookup_table[109][4] = wmem_strbuf_new(wmem_epan_scope(), "deice windo");
+    xplane_data_lookup_table[109][5] = wmem_strbuf_new(wmem_epan_scope(), "deice pito1");
+    xplane_data_lookup_table[109][6] = wmem_strbuf_new(wmem_epan_scope(), "deice piot2");
+    xplane_data_lookup_table[109][7] = wmem_strbuf_new(wmem_epan_scope(), "deice AoA");
+    xplane_data_lookup_table[109][8] = wmem_strbuf_new(wmem_epan_scope(), "devie wing");
+
+    xplane_data_lookup_table[110][0] = wmem_strbuf_new(wmem_epan_scope(), "Anti-ice and fuel switches");
+    xplane_data_lookup_table[110][1] = wmem_strbuf_new(wmem_epan_scope(), "alt air0");
+    xplane_data_lookup_table[110][2] = wmem_strbuf_new(wmem_epan_scope(), "alt air1");
+    xplane_data_lookup_table[110][3] = wmem_strbuf_new(wmem_epan_scope(), "auto ignit");
+    xplane_data_lookup_table[110][4] = wmem_strbuf_new(wmem_epan_scope(), "audo ignit");
+    xplane_data_lookup_table[110][5] = wmem_strbuf_new(wmem_epan_scope(), "manul ignit");
+    xplane_data_lookup_table[110][6] = wmem_strbuf_new(wmem_epan_scope(), "manul ignit");
+    xplane_data_lookup_table[110][7] = wmem_strbuf_new(wmem_epan_scope(), "l-eng tank");
+    xplane_data_lookup_table[110][8] = wmem_strbuf_new(wmem_epan_scope(), "r-eng tank");
+
+    xplane_data_lookup_table[111][0] = wmem_strbuf_new(wmem_epan_scope(), "Clutch and artificial stability switches");
+    xplane_data_lookup_table[111][1] = wmem_strbuf_new(wmem_epan_scope(), "prero engag");
+    xplane_data_lookup_table[111][2] = wmem_strbuf_new(wmem_epan_scope(), "prero level");
+    xplane_data_lookup_table[111][3] = wmem_strbuf_new(wmem_epan_scope(), "clutc ratio");
+    xplane_data_lookup_table[111][4] = wmem_strbuf_new(wmem_epan_scope(), "");
+    xplane_data_lookup_table[111][5] = wmem_strbuf_new(wmem_epan_scope(), "art pitch");
+    xplane_data_lookup_table[111][6] = wmem_strbuf_new(wmem_epan_scope(), "art roll");
+    xplane_data_lookup_table[111][7] = wmem_strbuf_new(wmem_epan_scope(), "yaw damp");
+    xplane_data_lookup_table[111][8] = wmem_strbuf_new(wmem_epan_scope(), "auto brake");
+
+    xplane_data_lookup_table[112][0] = wmem_strbuf_new(wmem_epan_scope(), "Misc switches");
+    xplane_data_lookup_table[112][1] = wmem_strbuf_new(wmem_epan_scope(), "tot energ");
+    xplane_data_lookup_table[112][2] = wmem_strbuf_new(wmem_epan_scope(), "radal feet");
+    xplane_data_lookup_table[112][3] = wmem_strbuf_new(wmem_epan_scope(), "prop sync");
+    xplane_data_lookup_table[112][4] = wmem_strbuf_new(wmem_epan_scope(), "fethr mode");
+    xplane_data_lookup_table[112][5] = wmem_strbuf_new(wmem_epan_scope(), "puffr power");
+    xplane_data_lookup_table[112][6] = wmem_strbuf_new(wmem_epan_scope(), "water scoop");
+    xplane_data_lookup_table[112][7] = wmem_strbuf_new(wmem_epan_scope(), "arrst hook");
+    xplane_data_lookup_table[112][8] = wmem_strbuf_new(wmem_epan_scope(), "chute deply");
+
+    xplane_data_lookup_table[113][0] = wmem_strbuf_new(wmem_epan_scope(), "Gen. Annunciations 1");
+    xplane_data_lookup_table[113][1] = wmem_strbuf_new(wmem_epan_scope(), "mast cau");
+    xplane_data_lookup_table[113][2] = wmem_strbuf_new(wmem_epan_scope(), "mast wat");
+    xplane_data_lookup_table[113][3] = wmem_strbuf_new(wmem_epan_scope(), "masy accp");
+    xplane_data_lookup_table[113][4] = wmem_strbuf_new(wmem_epan_scope(), "auto disco");
+    xplane_data_lookup_table[113][5] = wmem_strbuf_new(wmem_epan_scope(), "low vacum");
+    xplane_data_lookup_table[113][6] = wmem_strbuf_new(wmem_epan_scope(), "low volt");
+    xplane_data_lookup_table[113][7] = wmem_strbuf_new(wmem_epan_scope(), "fuel quant");
+    xplane_data_lookup_table[113][8] = wmem_strbuf_new(wmem_epan_scope(), "hyd press");
+
+    xplane_data_lookup_table[114][0] = wmem_strbuf_new(wmem_epan_scope(), "Gen. Annunciations 2");
+    xplane_data_lookup_table[114][1] = wmem_strbuf_new(wmem_epan_scope(), "yawda on");
+    xplane_data_lookup_table[114][2] = wmem_strbuf_new(wmem_epan_scope(), "sbrk on");
+    xplane_data_lookup_table[114][3] = wmem_strbuf_new(wmem_epan_scope(), "GPWS warn");
+    xplane_data_lookup_table[114][4] = wmem_strbuf_new(wmem_epan_scope(), "ice warn");
+    xplane_data_lookup_table[114][5] = wmem_strbuf_new(wmem_epan_scope(), "pitot off");
+    xplane_data_lookup_table[114][6] = wmem_strbuf_new(wmem_epan_scope(), "cabin althi");
+    xplane_data_lookup_table[114][7] = wmem_strbuf_new(wmem_epan_scope(), "afthr arm");
+    xplane_data_lookup_table[114][8] = wmem_strbuf_new(wmem_epan_scope(), "osps time");
+
+    xplane_data_lookup_table[115][0] = wmem_strbuf_new(wmem_epan_scope(), "Engine annunciations");
+    xplane_data_lookup_table[115][1] = wmem_strbuf_new(wmem_epan_scope(), "fuel press");
+    xplane_data_lookup_table[115][2] = wmem_strbuf_new(wmem_epan_scope(), "oil press");
+    xplane_data_lookup_table[115][3] = wmem_strbuf_new(wmem_epan_scope(), "oil temp");
+    xplane_data_lookup_table[115][4] = wmem_strbuf_new(wmem_epan_scope(), "inver warn");
+    xplane_data_lookup_table[115][5] = wmem_strbuf_new(wmem_epan_scope(), "gener warn");
+    xplane_data_lookup_table[115][6] = wmem_strbuf_new(wmem_epan_scope(), "chip detec");
+    xplane_data_lookup_table[115][7] = wmem_strbuf_new(wmem_epan_scope(), "engin fire");
+    xplane_data_lookup_table[115][8] = wmem_strbuf_new(wmem_epan_scope(), "ignit 0/1");
+
+    xplane_data_lookup_table[116][0] = wmem_strbuf_new(wmem_epan_scope(), "Autopilot armed status");
+    xplane_data_lookup_table[116][1] = wmem_strbuf_new(wmem_epan_scope(), "nav arm");
+    xplane_data_lookup_table[116][2] = wmem_strbuf_new(wmem_epan_scope(), "alt arm");
+    xplane_data_lookup_table[116][3] = wmem_strbuf_new(wmem_epan_scope(), "app arm");
+    xplane_data_lookup_table[116][4] = wmem_strbuf_new(wmem_epan_scope(), "vnav enab");
+    xplane_data_lookup_table[116][5] = wmem_strbuf_new(wmem_epan_scope(), "vnav warn");
+    xplane_data_lookup_table[116][6] = wmem_strbuf_new(wmem_epan_scope(), "vnav time");
+    xplane_data_lookup_table[116][7] = wmem_strbuf_new(wmem_epan_scope(), "gp enabl");
+    xplane_data_lookup_table[116][8] = wmem_strbuf_new(wmem_epan_scope(), "");
+
+    xplane_data_lookup_table[117][0] = wmem_strbuf_new(wmem_epan_scope(), "Autopilot modes");
+    xplane_data_lookup_table[117][1] = wmem_strbuf_new(wmem_epan_scope(), "auto throt");
+    xplane_data_lookup_table[117][2] = wmem_strbuf_new(wmem_epan_scope(), "mode hding");
+    xplane_data_lookup_table[117][3] = wmem_strbuf_new(wmem_epan_scope(), "mode alt");
+    xplane_data_lookup_table[117][4] = wmem_strbuf_new(wmem_epan_scope(), "");
+    xplane_data_lookup_table[117][5] = wmem_strbuf_new(wmem_epan_scope(), "bac 0/1");
+    xplane_data_lookup_table[117][6] = wmem_strbuf_new(wmem_epan_scope(), "app");
+    xplane_data_lookup_table[117][7] = wmem_strbuf_new(wmem_epan_scope(), "");
+    xplane_data_lookup_table[117][8] = wmem_strbuf_new(wmem_epan_scope(), "sync butn");
+
+    xplane_data_lookup_table[118][0] = wmem_strbuf_new(wmem_epan_scope(), "Autopilot values");
+    xplane_data_lookup_table[118][1] = wmem_strbuf_new(wmem_epan_scope(), "set speed");
+    xplane_data_lookup_table[118][2] = wmem_strbuf_new(wmem_epan_scope(), "set hding");
+    xplane_data_lookup_table[118][3] = wmem_strbuf_new(wmem_epan_scope(), "set vvi");
+    xplane_data_lookup_table[118][4] = wmem_strbuf_new(wmem_epan_scope(), "dial alt");
+    xplane_data_lookup_table[118][5] = wmem_strbuf_new(wmem_epan_scope(), "bac vnav alt");
+    xplane_data_lookup_table[118][6] = wmem_strbuf_new(wmem_epan_scope(), "use alt");
+    xplane_data_lookup_table[118][7] = wmem_strbuf_new(wmem_epan_scope(), "sync roll");
+    xplane_data_lookup_table[118][8] = wmem_strbuf_new(wmem_epan_scope(), "sync pitch");
+
+    xplane_data_lookup_table[119][0] = wmem_strbuf_new(wmem_epan_scope(), "Weapon status");
+    xplane_data_lookup_table[119][1] = wmem_strbuf_new(wmem_epan_scope(), "hdng delta");
+    xplane_data_lookup_table[119][2] = wmem_strbuf_new(wmem_epan_scope(), "ptch delta");
+    xplane_data_lookup_table[119][3] = wmem_strbuf_new(wmem_epan_scope(), "R d/sec");
+    xplane_data_lookup_table[119][4] = wmem_strbuf_new(wmem_epan_scope(), "Q d/sec");
+    xplane_data_lookup_table[119][5] = wmem_strbuf_new(wmem_epan_scope(), "rudd ratio");
+    xplane_data_lookup_table[119][6] = wmem_strbuf_new(wmem_epan_scope(), "elev ratio");
+    xplane_data_lookup_table[119][7] = wmem_strbuf_new(wmem_epan_scope(), "V kts");
+    xplane_data_lookup_table[119][8] = wmem_strbuf_new(wmem_epan_scope(), "dis ft");
+
+    xplane_data_lookup_table[120][0] = wmem_strbuf_new(wmem_epan_scope(), "Pressurization status");
+    xplane_data_lookup_table[120][1] = wmem_strbuf_new(wmem_epan_scope(), "set alt");
+    xplane_data_lookup_table[120][2] = wmem_strbuf_new(wmem_epan_scope(), "set vvi");
+    xplane_data_lookup_table[120][3] = wmem_strbuf_new(wmem_epan_scope(), "cabin alt");
+    xplane_data_lookup_table[120][4] = wmem_strbuf_new(wmem_epan_scope(), "cabin vvi");
+    xplane_data_lookup_table[120][5] = wmem_strbuf_new(wmem_epan_scope(), "test time");
+    xplane_data_lookup_table[120][6] = wmem_strbuf_new(wmem_epan_scope(), "diff psi");
+    xplane_data_lookup_table[120][7] = wmem_strbuf_new(wmem_epan_scope(), "dump all");
+    xplane_data_lookup_table[120][8] = wmem_strbuf_new(wmem_epan_scope(), "bleed src");
+
+    xplane_data_lookup_table[121][0] = wmem_strbuf_new(wmem_epan_scope(), "APU and GPU status");
+    xplane_data_lookup_table[121][1] = wmem_strbuf_new(wmem_epan_scope(), "APU runng");
+    xplane_data_lookup_table[121][2] = wmem_strbuf_new(wmem_epan_scope(), "APU N1");
+    xplane_data_lookup_table[121][3] = wmem_strbuf_new(wmem_epan_scope(), "APU rat");
+    xplane_data_lookup_table[121][4] = wmem_strbuf_new(wmem_epan_scope(), "GPU rat");
+    xplane_data_lookup_table[121][5] = wmem_strbuf_new(wmem_epan_scope(), "RAT rat");
+    xplane_data_lookup_table[121][6] = wmem_strbuf_new(wmem_epan_scope(), "APU amp");
+    xplane_data_lookup_table[121][7] = wmem_strbuf_new(wmem_epan_scope(), "GPU amp");
+    xplane_data_lookup_table[121][8] = wmem_strbuf_new(wmem_epan_scope(), "RAT amp");
+
+    xplane_data_lookup_table[122][0] = wmem_strbuf_new(wmem_epan_scope(), "Radar status");
+    xplane_data_lookup_table[122][1] = wmem_strbuf_new(wmem_epan_scope(), "targ select");
+    xplane_data_lookup_table[122][2] = wmem_strbuf_new(wmem_epan_scope(), "");
+    xplane_data_lookup_table[122][3] = wmem_strbuf_new(wmem_epan_scope(), "");
+    xplane_data_lookup_table[122][4] = wmem_strbuf_new(wmem_epan_scope(), "");
+    xplane_data_lookup_table[122][5] = wmem_strbuf_new(wmem_epan_scope(), "");
+    xplane_data_lookup_table[122][6] = wmem_strbuf_new(wmem_epan_scope(), "");
+    xplane_data_lookup_table[122][7] = wmem_strbuf_new(wmem_epan_scope(), "");
+    xplane_data_lookup_table[122][8] = wmem_strbuf_new(wmem_epan_scope(), "");
+
+    xplane_data_lookup_table[123][0] = wmem_strbuf_new(wmem_epan_scope(), "Hydraulic status");
+    xplane_data_lookup_table[123][1] = wmem_strbuf_new(wmem_epan_scope(), "eng-1 pump");
+    xplane_data_lookup_table[123][2] = wmem_strbuf_new(wmem_epan_scope(), "eng-2 pump");
+    xplane_data_lookup_table[123][3] = wmem_strbuf_new(wmem_epan_scope(), "ele pum");
+    xplane_data_lookup_table[123][4] = wmem_strbuf_new(wmem_epan_scope(), "RA pum");
+    xplane_data_lookup_table[123][5] = wmem_strbuf_new(wmem_epan_scope(), "hyd qty");
+    xplane_data_lookup_table[123][6] = wmem_strbuf_new(wmem_epan_scope(), "hyd qty");
+    xplane_data_lookup_table[123][7] = wmem_strbuf_new(wmem_epan_scope(), "hyd pres");
+    xplane_data_lookup_table[123][8] = wmem_strbuf_new(wmem_epan_scope(), "hyd pres");
+
+    xplane_data_lookup_table[124][0] = wmem_strbuf_new(wmem_epan_scope(), "Electrical and solar systems");
+    xplane_data_lookup_table[124][1] = wmem_strbuf_new(wmem_epan_scope(), "bus1 volt");
+    xplane_data_lookup_table[124][2] = wmem_strbuf_new(wmem_epan_scope(), "bus2 volt");
+    xplane_data_lookup_table[124][3] = wmem_strbuf_new(wmem_epan_scope(), "bus1 amp");
+    xplane_data_lookup_table[124][4] = wmem_strbuf_new(wmem_epan_scope(), "bus2 amp");
+    xplane_data_lookup_table[124][5] = wmem_strbuf_new(wmem_epan_scope(), "batt1 w-hr");
+    xplane_data_lookup_table[124][6] = wmem_strbuf_new(wmem_epan_scope(), "batt2 w-hr");
+    xplane_data_lookup_table[124][7] = wmem_strbuf_new(wmem_epan_scope(), "engin in W");
+    xplane_data_lookup_table[124][8] = wmem_strbuf_new(wmem_epan_scope(), "solar out W");
+
+    xplane_data_lookup_table[125][0] = wmem_strbuf_new(wmem_epan_scope(), "Icing status 1");
+    xplane_data_lookup_table[125][1] = wmem_strbuf_new(wmem_epan_scope(), "inlet ice");
+    xplane_data_lookup_table[125][2] = wmem_strbuf_new(wmem_epan_scope(), "inlet ine");
+    xplane_data_lookup_table[125][3] = wmem_strbuf_new(wmem_epan_scope(), "prop ice");
+    xplane_data_lookup_table[125][4] = wmem_strbuf_new(wmem_epan_scope(), "prop ice");
+    xplane_data_lookup_table[125][5] = wmem_strbuf_new(wmem_epan_scope(), "pitot ice");
+    xplane_data_lookup_table[125][6] = wmem_strbuf_new(wmem_epan_scope(), "pitot ice");
+    xplane_data_lookup_table[125][7] = wmem_strbuf_new(wmem_epan_scope(), "statc ice");
+    xplane_data_lookup_table[125][8] = wmem_strbuf_new(wmem_epan_scope(), "statc ice");
+
+    xplane_data_lookup_table[126][0] = wmem_strbuf_new(wmem_epan_scope(), "Icing status 2");
+    xplane_data_lookup_table[126][1] = wmem_strbuf_new(wmem_epan_scope(), "aoa ice");
+    xplane_data_lookup_table[126][2] = wmem_strbuf_new(wmem_epan_scope(), "aoa ice");
+    xplane_data_lookup_table[126][3] = wmem_strbuf_new(wmem_epan_scope(), "lwing ice");
+    xplane_data_lookup_table[126][4] = wmem_strbuf_new(wmem_epan_scope(), "rwing ice");
+    xplane_data_lookup_table[126][5] = wmem_strbuf_new(wmem_epan_scope(), "windo ice");
+    xplane_data_lookup_table[126][6] = wmem_strbuf_new(wmem_epan_scope(), "");
+    xplane_data_lookup_table[126][7] = wmem_strbuf_new(wmem_epan_scope(), "carb1 ice");
+    xplane_data_lookup_table[126][8] = wmem_strbuf_new(wmem_epan_scope(), "carb2 ice");
+
+    xplane_data_lookup_table[127][0] = wmem_strbuf_new(wmem_epan_scope(), "Warning status");
+    xplane_data_lookup_table[127][1] = wmem_strbuf_new(wmem_epan_scope(), "warn time");
+    xplane_data_lookup_table[127][2] = wmem_strbuf_new(wmem_epan_scope(), "caut time");
+    xplane_data_lookup_table[127][3] = wmem_strbuf_new(wmem_epan_scope(), "warn work");
+    xplane_data_lookup_table[127][4] = wmem_strbuf_new(wmem_epan_scope(), "caut work");
+    xplane_data_lookup_table[127][5] = wmem_strbuf_new(wmem_epan_scope(), "gear work");
+    xplane_data_lookup_table[127][6] = wmem_strbuf_new(wmem_epan_scope(), "gear warn");
+    xplane_data_lookup_table[127][7] = wmem_strbuf_new(wmem_epan_scope(), "stall warn");
+    xplane_data_lookup_table[127][8] = wmem_strbuf_new(wmem_epan_scope(), "");
+
+    xplane_data_lookup_table[128][0] = wmem_strbuf_new(wmem_epan_scope(), "Flight plan legs");
+    xplane_data_lookup_table[128][1] = wmem_strbuf_new(wmem_epan_scope(), "leg #");
+    xplane_data_lookup_table[128][2] = wmem_strbuf_new(wmem_epan_scope(), "leg type");
+    xplane_data_lookup_table[128][3] = wmem_strbuf_new(wmem_epan_scope(), "leg lat");
+    xplane_data_lookup_table[128][4] = wmem_strbuf_new(wmem_epan_scope(), "leg long");
+    xplane_data_lookup_table[128][5] = wmem_strbuf_new(wmem_epan_scope(), "");
+    xplane_data_lookup_table[128][6] = wmem_strbuf_new(wmem_epan_scope(), "");
+    xplane_data_lookup_table[128][7] = wmem_strbuf_new(wmem_epan_scope(), "");
+    xplane_data_lookup_table[128][8] = wmem_strbuf_new(wmem_epan_scope(), "");
+
+    xplane_data_lookup_table[129][0] = wmem_strbuf_new(wmem_epan_scope(), "Hardware options");
+    xplane_data_lookup_table[129][1] = wmem_strbuf_new(wmem_epan_scope(), "pedal nobrk");
+    xplane_data_lookup_table[129][2] = wmem_strbuf_new(wmem_epan_scope(), "pedal wibrk");
+    xplane_data_lookup_table[129][3] = wmem_strbuf_new(wmem_epan_scope(), "yoke pfc");
+    xplane_data_lookup_table[129][4] = wmem_strbuf_new(wmem_epan_scope(), "pedal pfc");
+    xplane_data_lookup_table[129][5] = wmem_strbuf_new(wmem_epan_scope(), "throt pfc");
+    xplane_data_lookup_table[129][6] = wmem_strbuf_new(wmem_epan_scope(), "cecon pfc");
+    xplane_data_lookup_table[129][7] = wmem_strbuf_new(wmem_epan_scope(), "switc pfc");
+    xplane_data_lookup_table[129][8] = wmem_strbuf_new(wmem_epan_scope(), "btogg pfc");
+
+    xplane_data_lookup_table[130][0] = wmem_strbuf_new(wmem_epan_scope(), "Camera location");
+    xplane_data_lookup_table[130][1] = wmem_strbuf_new(wmem_epan_scope(), "camra long");
+    xplane_data_lookup_table[130][2] = wmem_strbuf_new(wmem_epan_scope(), "camra lat");
+    xplane_data_lookup_table[130][3] = wmem_strbuf_new(wmem_epan_scope(), "camra ele");
+    xplane_data_lookup_table[130][4] = wmem_strbuf_new(wmem_epan_scope(), "camra hdng");
+    xplane_data_lookup_table[130][5] = wmem_strbuf_new(wmem_epan_scope(), "camra pitch");
+    xplane_data_lookup_table[130][6] = wmem_strbuf_new(wmem_epan_scope(), "camra roll");
+    xplane_data_lookup_table[130][7] = wmem_strbuf_new(wmem_epan_scope(), "");
+    xplane_data_lookup_table[130][8] = wmem_strbuf_new(wmem_epan_scope(), "camra clou");
+
+    xplane_data_lookup_table[131][0] = wmem_strbuf_new(wmem_epan_scope(), "Ground location");
+    xplane_data_lookup_table[131][1] = wmem_strbuf_new(wmem_epan_scope(), "");
+    xplane_data_lookup_table[131][2] = wmem_strbuf_new(wmem_epan_scope(), "");
+    xplane_data_lookup_table[131][3] = wmem_strbuf_new(wmem_epan_scope(), "");
+    xplane_data_lookup_table[131][4] = wmem_strbuf_new(wmem_epan_scope(), "");
+    xplane_data_lookup_table[131][5] = wmem_strbuf_new(wmem_epan_scope(), "");
+    xplane_data_lookup_table[131][6] = wmem_strbuf_new(wmem_epan_scope(), "");
+    xplane_data_lookup_table[131][7] = wmem_strbuf_new(wmem_epan_scope(), "");
+    xplane_data_lookup_table[131][8] = wmem_strbuf_new(wmem_epan_scope(), "");
+
+    xplane_data_lookup_table[132][0] = wmem_strbuf_new(wmem_epan_scope(), "Climb stats");
+    xplane_data_lookup_table[132][1] = wmem_strbuf_new(wmem_epan_scope(), "h-spd kt");
+    xplane_data_lookup_table[132][2] = wmem_strbuf_new(wmem_epan_scope(), "v-spd fpm");
+    xplane_data_lookup_table[132][3] = wmem_strbuf_new(wmem_epan_scope(), "");
+    xplane_data_lookup_table[132][4] = wmem_strbuf_new(wmem_epan_scope(), "mult VxVVI");
+    xplane_data_lookup_table[132][5] = wmem_strbuf_new(wmem_epan_scope(), "");
+    xplane_data_lookup_table[132][6] = wmem_strbuf_new(wmem_epan_scope(), "");
+    xplane_data_lookup_table[132][7] = wmem_strbuf_new(wmem_epan_scope(), "");
+    xplane_data_lookup_table[132][8] = wmem_strbuf_new(wmem_epan_scope(), "");
+
+    xplane_data_lookup_table[133][0] = wmem_strbuf_new(wmem_epan_scope(), "Cruise stats");
+    xplane_data_lookup_table[133][1] = wmem_strbuf_new(wmem_epan_scope(), "ff pph");
+    xplane_data_lookup_table[133][2] = wmem_strbuf_new(wmem_epan_scope(), "ff gph");
+    xplane_data_lookup_table[133][3] = wmem_strbuf_new(wmem_epan_scope(), "speed mph");
+    xplane_data_lookup_table[133][4] = wmem_strbuf_new(wmem_epan_scope(), "eta smpg");
+    xplane_data_lookup_table[133][5] = wmem_strbuf_new(wmem_epan_scope(), "etc nm/lb");
+    xplane_data_lookup_table[133][6] = wmem_strbuf_new(wmem_epan_scope(), "range sm");
+    xplane_data_lookup_table[133][7] = wmem_strbuf_new(wmem_epan_scope(), "endur hours");
+    xplane_data_lookup_table[133][8] = wmem_strbuf_new(wmem_epan_scope(), "mult VxMPG");
+
+    xplane_data_lookup_table[134][0] = wmem_strbuf_new(wmem_epan_scope(), "Landing gear steering");
+    xplane_data_lookup_table[134][1] = wmem_strbuf_new(wmem_epan_scope(), "Gear 1 deg");
+    xplane_data_lookup_table[134][2] = wmem_strbuf_new(wmem_epan_scope(), "Gear 2 deg");
+    xplane_data_lookup_table[134][3] = wmem_strbuf_new(wmem_epan_scope(), "Gear 3 deg");
+    xplane_data_lookup_table[134][4] = wmem_strbuf_new(wmem_epan_scope(), "Gear 4 deg");
+    xplane_data_lookup_table[134][5] = wmem_strbuf_new(wmem_epan_scope(), "Gear 5 deg");
+    xplane_data_lookup_table[134][6] = wmem_strbuf_new(wmem_epan_scope(), "Gear 6 deg");
+    xplane_data_lookup_table[134][7] = wmem_strbuf_new(wmem_epan_scope(), "Gear 7 deg");
+    xplane_data_lookup_table[134][8] = wmem_strbuf_new(wmem_epan_scope(), "Gear 8 deg");
+
+    xplane_data_lookup_table[135][0] = wmem_strbuf_new(wmem_epan_scope(), "Motion platform stats");
+    xplane_data_lookup_table[135][1] = wmem_strbuf_new(wmem_epan_scope(), "acc-x m/ss");
+    xplane_data_lookup_table[135][2] = wmem_strbuf_new(wmem_epan_scope(), "acc-y m/ss");
+    xplane_data_lookup_table[135][3] = wmem_strbuf_new(wmem_epan_scope(), "acc-z m/ss");
+    xplane_data_lookup_table[135][4] = wmem_strbuf_new(wmem_epan_scope(), "P rad/s");
+    xplane_data_lookup_table[135][5] = wmem_strbuf_new(wmem_epan_scope(), "Q rad/s");
+    xplane_data_lookup_table[135][6] = wmem_strbuf_new(wmem_epan_scope(), "R rad/s");
+    xplane_data_lookup_table[135][7] = wmem_strbuf_new(wmem_epan_scope(), "");
+    xplane_data_lookup_table[135][8] = wmem_strbuf_new(wmem_epan_scope(), "");
+
+    xplane_data_lookup_table[136][0] = wmem_strbuf_new(wmem_epan_scope(), "Joystick Raw Axis Deflections");
+    xplane_data_lookup_table[136][1] = wmem_strbuf_new(wmem_epan_scope(), "axis1 ratio");
+    xplane_data_lookup_table[136][2] = wmem_strbuf_new(wmem_epan_scope(), "axis2 ratio");
+    xplane_data_lookup_table[136][3] = wmem_strbuf_new(wmem_epan_scope(), "axis3 ratio");
+    xplane_data_lookup_table[136][4] = wmem_strbuf_new(wmem_epan_scope(), "axis4 ratio");
+    xplane_data_lookup_table[136][5] = wmem_strbuf_new(wmem_epan_scope(), "axis5 ratio");
+    xplane_data_lookup_table[136][6] = wmem_strbuf_new(wmem_epan_scope(), "axis6 ratio");
+    xplane_data_lookup_table[136][7] = wmem_strbuf_new(wmem_epan_scope(), "axis7 ratio");
+    xplane_data_lookup_table[136][8] = wmem_strbuf_new(wmem_epan_scope(), "axis8 ratio");
+
+    xplane_data_lookup_table[137][0] = wmem_strbuf_new(wmem_epan_scope(), "Gear forces");
+    xplane_data_lookup_table[137][1] = wmem_strbuf_new(wmem_epan_scope(), "norm lb");
+    xplane_data_lookup_table[137][2] = wmem_strbuf_new(wmem_epan_scope(), "axial lb");
+    xplane_data_lookup_table[137][3] = wmem_strbuf_new(wmem_epan_scope(), "side lb");
+    xplane_data_lookup_table[137][4] = wmem_strbuf_new(wmem_epan_scope(), "L lb-ft");
+    xplane_data_lookup_table[137][5] = wmem_strbuf_new(wmem_epan_scope(), "M lb-ft");
+    xplane_data_lookup_table[137][6] = wmem_strbuf_new(wmem_epan_scope(), "N lb-ft");
+    xplane_data_lookup_table[137][7] = wmem_strbuf_new(wmem_epan_scope(), "");
+    xplane_data_lookup_table[137][8] = wmem_strbuf_new(wmem_epan_scope(), "");
+
+    xplane_data_lookup_table[138][0] = wmem_strbuf_new(wmem_epan_scope(), "Servo Aileron / Elevator / Rudder");
+    xplane_data_lookup_table[138][1] = wmem_strbuf_new(wmem_epan_scope(), "elev servo");
+    xplane_data_lookup_table[138][2] = wmem_strbuf_new(wmem_epan_scope(), "ailrn servo");
+    xplane_data_lookup_table[138][3] = wmem_strbuf_new(wmem_epan_scope(), "ruddr servo");
+    xplane_data_lookup_table[138][4] = wmem_strbuf_new(wmem_epan_scope(), "");
+    xplane_data_lookup_table[138][5] = wmem_strbuf_new(wmem_epan_scope(), "");
+    xplane_data_lookup_table[138][6] = wmem_strbuf_new(wmem_epan_scope(), "");
+    xplane_data_lookup_table[138][7] = wmem_strbuf_new(wmem_epan_scope(), "");
+    xplane_data_lookup_table[138][8] = wmem_strbuf_new(wmem_epan_scope(), "");
+}
+
 static int dissect_xplane_acfn(tvbuff_t* tvb, packet_info* pinfo, proto_tree* tree, void* data _U_)
 {
     const guint8* path = NULL;
@@ -642,24 +1605,24 @@ static int dissect_xplane_acfn(tvbuff_t* tvb, packet_info* pinfo, proto_tree* tr
     if (length != xplane_ACFN_PACKET_LENGTH)
     {
         expert_add_info_format(pinfo, xplane_acfn_item, &ei_xplane_acfn_length, "Required length of %u but received %u bytes.", xplane_ACFN_PACKET_LENGTH, length);
-        return length;
     }
+    else
+    {
+        tvbuff_t* tvb_content = tvb_new_subset_length(tvb, xplane_HEADER_LENGTH, -1);
+        proto_item* id_item = proto_tree_add_item_ret_int(xplane_acfn_tree, hf_xplane_acfn_index, tvb_content, 0, 4, ENC_LITTLE_ENDIAN, &id);
+        proto_item* path_item = proto_tree_add_item_ret_string(xplane_acfn_tree, hf_xplane_acfn_path, tvb_content, 4, 150, ENC_ASCII, wmem_packet_scope(), &path);
+        proto_tree_add_item(xplane_acfn_tree, hf_xplane_acfn_padding, tvb_content, 154, 2, ENC_ASCII);
+        proto_item* livery_item = proto_tree_add_item_ret_int(xplane_acfn_tree, hf_xplane_acfn_livery, tvb_content, 156, 4, ENC_LITTLE_ENDIAN, &livery);
 
-    tvbuff_t* tvb_content = tvb_new_subset_length(tvb, xplane_HEADER_LENGTH, -1);
-    proto_item* id_item = proto_tree_add_item_ret_int(xplane_acfn_tree, hf_xplane_acfn_index, tvb_content, 0, 4, ENC_LITTLE_ENDIAN, &id);
-    proto_item* path_item = proto_tree_add_item_ret_string(xplane_acfn_tree, hf_xplane_acfn_path, tvb_content, 4, 150, ENC_ASCII, wmem_packet_scope(), &path);
-    proto_tree_add_item(xplane_acfn_tree, hf_xplane_acfn_padding, tvb_content, 154, 2, ENC_ASCII);
-    proto_item* livery_item = proto_tree_add_item_ret_int(xplane_acfn_tree, hf_xplane_acfn_livery, tvb_content, 156, 4, ENC_LITTLE_ENDIAN, &livery);
+        col_append_fstr(pinfo->cinfo, COL_INFO, " Id=%d Path=%s", id, path);
 
-    col_append_fstr(pinfo->cinfo, COL_INFO, " Id=%d Path=%s", id, path);
-
-    if (id < 0 || id > 19)
-        expert_add_info_format(pinfo, id_item, &ei_xplane_acfn_id, "The provided Id [%u] must be either 0 (own Aircraft) or 1->19 (AI Aircraft).", id);
-    if (strchr(path, '\\') != NULL)
-        expert_add_info_format(pinfo, path_item, &ei_xplane_acfn_path_seperator, "For consistency the provided path [%s] could use the unix-style '/' path seperator. ", path);
-    if (livery < 0)
-        expert_add_info_format(pinfo, livery_item, &ei_xplane_acfn_livery, "The provided Livery Id [%u] must be 0 or greater.", livery);
-
+        if (id < 0 || id > 19)
+            expert_add_info_format(pinfo, id_item, &ei_xplane_acfn_id, "The provided Id [%u] must be either 0 (own Aircraft) or 1->19 (AI Aircraft).", id);
+        if (strchr(path, '\\') != NULL)
+            expert_add_info_format(pinfo, path_item, &ei_xplane_acfn_path_seperator, "For consistency the provided path [%s] could use the unix-style '/' path seperator. ", path);
+        if (livery < 0)
+            expert_add_info_format(pinfo, livery_item, &ei_xplane_acfn_livery, "The provided Livery Id [%u] must be 0 or greater.", livery);
+    }
     return tvb_captured_length(tvb);
 }
 
@@ -679,53 +1642,53 @@ static int dissect_xplane_acpr(tvbuff_t* tvb, packet_info* pinfo, proto_tree* tr
     if (length != xplane_ACPR_PACKET_LENGTH)
     {
         expert_add_info_format(pinfo, xplane_acpr_item, &ei_xplane_acpr_length, "Required length %u but received %u", xplane_ACPR_PACKET_LENGTH, length);
-        return length;
     }
+    else
+    {
+        tvbuff_t* tvb_content = tvb_new_subset_length(tvb, xplane_HEADER_LENGTH, -1);
+        proto_item* id_item = proto_tree_add_item_ret_int(xplane_acpr_tree, hf_xplane_acpr_index, tvb_content, 0, 4, ENC_LITTLE_ENDIAN, &id);
+        proto_item* path_item = proto_tree_add_item_ret_string(xplane_acpr_tree, hf_xplane_acpr_path, tvb_content, 4, 150, ENC_ASCII, wmem_packet_scope(), &path);
+        proto_tree_add_item(xplane_acpr_tree, hf_xplane_acpr_padding, tvb_content, 154, 2, ENC_LITTLE_ENDIAN);
+        proto_item* livery_item = proto_tree_add_item_ret_int(xplane_acpr_tree, hf_xplane_acpr_livery, tvb_content, 156, 4, ENC_LITTLE_ENDIAN, &livery);
+        proto_tree_add_item(xplane_acpr_tree, hf_xplane_acpr_starttype, tvb_content, 160, 4, ENC_LITTLE_ENDIAN);
+        proto_tree_add_item(xplane_acpr_tree, hf_xplane_acpr_aircraftindex, tvb_content, 164, 4, ENC_LITTLE_ENDIAN);
+        proto_tree_add_item(xplane_acpr_tree, hf_xplane_acpr_ICAO, tvb_content, 168, 8, ENC_ASCII);
+        proto_tree_add_item(xplane_acpr_tree, hf_xplane_acpr_runwayindex, tvb_content, 176, 4, ENC_LITTLE_ENDIAN);
+        proto_item* runwaydirection_item = proto_tree_add_item_ret_int(xplane_acpr_tree, hf_xplane_acpr_runwaydirection, tvb_content, 180, 4, ENC_LITTLE_ENDIAN, &runwaydirection);
+        proto_item* latitude_item = proto_tree_add_item(xplane_acpr_tree, hf_xplane_acpr_latitude, tvb_content, 184, 8, ENC_LITTLE_ENDIAN);
+        proto_item* longitude_item = proto_tree_add_item(xplane_acpr_tree, hf_xplane_acpr_longitude, tvb_content, 192, 8, ENC_LITTLE_ENDIAN);
+        proto_item* elevation_item = proto_tree_add_item(xplane_acpr_tree, hf_xplane_acpr_elevation, tvb_content, 200, 8, ENC_LITTLE_ENDIAN);
+        proto_item* trueheading_item = proto_tree_add_item(xplane_acpr_tree, hf_xplane_acpr_trueheading, tvb_content, 208, 8, ENC_LITTLE_ENDIAN);
+        proto_item* speed_item = proto_tree_add_item(xplane_acpr_tree, hf_xplane_acpr_speed, tvb_content, 216, 8, ENC_LITTLE_ENDIAN);
 
-    tvbuff_t* tvb_content = tvb_new_subset_length(tvb, xplane_HEADER_LENGTH, -1);
-    proto_item* id_item = proto_tree_add_item_ret_int(xplane_acpr_tree, hf_xplane_acpr_index, tvb_content, 0, 4, ENC_LITTLE_ENDIAN, &id);
-    proto_item* path_item = proto_tree_add_item_ret_string(xplane_acpr_tree, hf_xplane_acpr_path, tvb_content, 4, 150, ENC_ASCII, wmem_packet_scope(), &path);
-    proto_tree_add_item(xplane_acpr_tree, hf_xplane_acpr_padding, tvb_content, 154, 2, ENC_LITTLE_ENDIAN);
-    proto_item* livery_item = proto_tree_add_item_ret_int(xplane_acpr_tree, hf_xplane_acpr_livery, tvb_content, 156, 4, ENC_LITTLE_ENDIAN, &livery);
-    proto_tree_add_item(xplane_acpr_tree, hf_xplane_acpr_starttype, tvb_content, 160, 4, ENC_LITTLE_ENDIAN);
-    proto_tree_add_item(xplane_acpr_tree, hf_xplane_acpr_aircraftindex, tvb_content, 164, 4, ENC_LITTLE_ENDIAN);
-    proto_tree_add_item(xplane_acpr_tree, hf_xplane_acpr_ICAO, tvb_content, 168, 8, ENC_ASCII);
-    proto_tree_add_item(xplane_acpr_tree, hf_xplane_acpr_runwayindex, tvb_content, 176, 4, ENC_LITTLE_ENDIAN);
-    proto_item* runwaydirection_item = proto_tree_add_item_ret_int(xplane_acpr_tree, hf_xplane_acpr_runwaydirection, tvb_content, 180, 4, ENC_LITTLE_ENDIAN, &runwaydirection);
-    proto_item* latitude_item = proto_tree_add_item(xplane_acpr_tree, hf_xplane_acpr_latitude, tvb_content, 184, 8, ENC_LITTLE_ENDIAN);
-    proto_item* longitude_item = proto_tree_add_item(xplane_acpr_tree, hf_xplane_acpr_longitude, tvb_content, 192, 8, ENC_LITTLE_ENDIAN);
-    proto_item* elevation_item = proto_tree_add_item(xplane_acpr_tree, hf_xplane_acpr_elevation, tvb_content, 200, 8, ENC_LITTLE_ENDIAN);
-    proto_item* trueheading_item = proto_tree_add_item(xplane_acpr_tree, hf_xplane_acpr_trueheading, tvb_content, 208, 8, ENC_LITTLE_ENDIAN);
-    proto_item* speed_item = proto_tree_add_item(xplane_acpr_tree, hf_xplane_acpr_speed, tvb_content, 216, 8, ENC_LITTLE_ENDIAN);
+        latitude = tvb_get_ieee_double(tvb_content, 184, ENC_LITTLE_ENDIAN);
+        longitude = tvb_get_ieee_double(tvb_content, 192, ENC_LITTLE_ENDIAN);
+        elevation = tvb_get_ieee_double(tvb_content, 200, ENC_LITTLE_ENDIAN);
+        trueheading = tvb_get_ieee_double(tvb_content, 208, ENC_LITTLE_ENDIAN);
+        speed = tvb_get_ieee_double(tvb_content, 216, ENC_LITTLE_ENDIAN);
 
-    latitude = tvb_get_ieee_double(tvb_content, 184, ENC_LITTLE_ENDIAN);
-    longitude = tvb_get_ieee_double(tvb_content, 192, ENC_LITTLE_ENDIAN);
-    elevation = tvb_get_ieee_double(tvb_content, 200, ENC_LITTLE_ENDIAN);
-    trueheading = tvb_get_ieee_double(tvb_content, 208, ENC_LITTLE_ENDIAN);
-    speed = tvb_get_ieee_double(tvb_content, 216, ENC_LITTLE_ENDIAN);
+        col_append_fstr(pinfo->cinfo, COL_INFO, " Id=%d Path=%s", id, path);
 
-    col_append_fstr(pinfo->cinfo, COL_INFO, " Id=%d Path=%s", id, path);
-
-    if (id < 0 || id > 19)
-        expert_add_info_format(pinfo, id_item, &ei_xplane_acpr_id, "The provided Id [%u] must be either 0 (own Aircraft) or 1->19 (AI Aircraft).", id);
-    if (strchr(path, '\\') != NULL)
-        expert_add_info_format(pinfo, path_item, &ei_xplane_acpr_path_seperator, "For consistency the provided path [%s] could use the unix-style '/' path seperator. ", path);
-    if (livery < 0)
-        expert_add_info_format(pinfo, livery_item, &ei_xplane_acpr_livery, "The provided Livery Id [%u] must be 0 or greater.", livery);
-    if (runwaydirection < 0 || runwaydirection> 1)
-        expert_add_info_format(pinfo, runwaydirection_item, &ei_xplane_acpr_runwaydirection, "The provided RunwayDirection [%u] must be 0 or 1.", runwaydirection);
-    if (latitude < -90 || latitude > 90)
-        expert_add_info_format(pinfo, latitude_item, &ei_xplane_acpr_latitude, "The provided Latitude [%lf] must be between -90 and +90.", latitude);
-    if (longitude < -180 || longitude > 180)
-        expert_add_info_format(pinfo, longitude_item, &ei_xplane_acpr_longitude, "The provided longitude [%lf] must be between -180 and +180.", longitude);
-    if (elevation < 0)
-        expert_add_info_format(pinfo, elevation_item, &ei_xplane_acpr_elevation, "The provided elevation [%lf] might not be valid.", elevation);
-    if (trueheading < 0 || trueheading > 360)
-        expert_add_info_format(pinfo, trueheading_item, &ei_xplane_acpr_trueheading, "The provided trueheading [%lf] might not be valid.", trueheading);
-    if (speed < 0)
-        expert_add_info_format(pinfo, speed_item, &ei_xplane_acpr_speed, "The provided speed [%lf] might not be valid.", speed);
-
-    return length;
+        if (id < 0 || id > 19)
+            expert_add_info_format(pinfo, id_item, &ei_xplane_acpr_id, "The provided Id [%u] must be either 0 (own Aircraft) or 1->19 (AI Aircraft).", id);
+        if (strchr(path, '\\') != NULL)
+            expert_add_info_format(pinfo, path_item, &ei_xplane_acpr_path_seperator, "For consistency the provided path [%s] could use the unix-style '/' path seperator. ", path);
+        if (livery < 0)
+            expert_add_info_format(pinfo, livery_item, &ei_xplane_acpr_livery, "The provided Livery Id [%u] must be 0 or greater.", livery);
+        if (runwaydirection < 0 || runwaydirection> 1)
+            expert_add_info_format(pinfo, runwaydirection_item, &ei_xplane_acpr_runwaydirection, "The provided RunwayDirection [%u] must be 0 or 1.", runwaydirection);
+        if (latitude < -90 || latitude > 90)
+            expert_add_info_format(pinfo, latitude_item, &ei_xplane_acpr_latitude, "The provided Latitude [%lf] must be between -90 and +90.", latitude);
+        if (longitude < -180 || longitude > 180)
+            expert_add_info_format(pinfo, longitude_item, &ei_xplane_acpr_longitude, "The provided longitude [%lf] must be between -180 and +180.", longitude);
+        if (elevation < 0)
+            expert_add_info_format(pinfo, elevation_item, &ei_xplane_acpr_elevation, "The provided elevation [%lf] might not be valid.", elevation);
+        if (trueheading < 0 || trueheading > 360)
+            expert_add_info_format(pinfo, trueheading_item, &ei_xplane_acpr_trueheading, "The provided trueheading [%lf] might not be valid.", trueheading);
+        if (speed < 0)
+            expert_add_info_format(pinfo, speed_item, &ei_xplane_acpr_speed, "The provided speed [%lf] might not be valid.", speed);
+    }
+    return tvb_captured_length(tvb);
 }
 
 static int dissect_xplane_alrt(tvbuff_t* tvb, packet_info* pinfo _U_, proto_tree* tree, void* data _U_)
@@ -796,7 +1759,7 @@ static int dissect_xplane_cmnd(tvbuff_t* tvb, packet_info* pinfo, proto_tree* tr
     proto_tree_add_item(xplane_cmnd_tree, hf_xplane_cmnd_header, tvb, 0, 4, ENC_ASCII);
 
     tvbuff_t* tvb_content = tvb_new_subset_length(tvb, xplane_HEADER_LENGTH, -1);
-    proto_tree_add_item_ret_string(xplane_cmnd_tree, hf_xplane_alrt_line1, tvb_content, 0, -1, ENC_ASCII, wmem_packet_scope(), &cmnd_name);
+    proto_tree_add_item_ret_string(xplane_cmnd_tree, hf_xplane_cmnd_command, tvb_content, 0, -1, ENC_ASCII, wmem_packet_scope(), &cmnd_name);
 
     col_append_fstr(pinfo->cinfo, COL_INFO, " Cmnd=%s", cmnd_name);
 
@@ -813,6 +1776,12 @@ static int dissect_xplane_data(tvbuff_t* tvb, packet_info* pinfo, proto_tree* tr
     proto_tree* xplane_data_tree = proto_item_add_subtree(xplane_data_item, ett_xplane_data);
     proto_tree_add_item(xplane_data_tree, hf_xplane_data_header, tvb, 0, 4, ENC_ASCII);
 
+    if (xplane_data_lookup_table_is_populated == FALSE)
+    {
+        xplane_populate_data_lookup_table();
+        xplane_data_lookup_table_is_populated = TRUE;
+    }
+
     if ((length - 5) % xplane_DATA_STRUCT_LENGTH != 0)
     {
         expert_add_info_format(pinfo, xplane_data_item, &ei_xplane_data_length, "Length %u is invalid. Length-5 must be divisible by %u", length, xplane_DATA_STRUCT_LENGTH);
@@ -827,16 +1796,33 @@ static int dissect_xplane_data(tvbuff_t* tvb, packet_info* pinfo, proto_tree* tr
         for (guint32 i = 0; i < recordCount; i++)
         {
             gint32 index = tvb_get_gint32(tvb_content, xplane_DATA_STRUCT_LENGTH * i, ENC_LITTLE_ENDIAN);
-            proto_tree* xplane_content_tree = proto_tree_add_subtree_format(xplane_data_tree, tvb_content, xplane_DATA_STRUCT_LENGTH * i, xplane_DATA_STRUCT_LENGTH, ett_xplane_data, NULL, "DATA Index: %d", index);
-            proto_tree_add_item(xplane_content_tree, hf_xplane_data_index, tvb_content, (xplane_DATA_STRUCT_LENGTH * i), 4, ENC_LITTLE_ENDIAN);
-            proto_tree_add_item(xplane_content_tree, hf_xplane_data_a, tvb_content, (xplane_DATA_STRUCT_LENGTH * i) + 4, 4, ENC_LITTLE_ENDIAN);
-            proto_tree_add_item(xplane_content_tree, hf_xplane_data_b, tvb_content, (xplane_DATA_STRUCT_LENGTH * i) + 8, 4, ENC_LITTLE_ENDIAN);
-            proto_tree_add_item(xplane_content_tree, hf_xplane_data_c, tvb_content, (xplane_DATA_STRUCT_LENGTH * i) + 12, 4, ENC_LITTLE_ENDIAN);
-            proto_tree_add_item(xplane_content_tree, hf_xplane_data_d, tvb_content, (xplane_DATA_STRUCT_LENGTH * i) + 16, 4, ENC_LITTLE_ENDIAN);
-            proto_tree_add_item(xplane_content_tree, hf_xplane_data_e, tvb_content, (xplane_DATA_STRUCT_LENGTH * i) + 20, 4, ENC_LITTLE_ENDIAN);
-            proto_tree_add_item(xplane_content_tree, hf_xplane_data_f, tvb_content, (xplane_DATA_STRUCT_LENGTH * i) + 24, 4, ENC_LITTLE_ENDIAN);
-            proto_tree_add_item(xplane_content_tree, hf_xplane_data_g, tvb_content, (xplane_DATA_STRUCT_LENGTH * i) + 28, 4, ENC_LITTLE_ENDIAN);
-            proto_tree_add_item(xplane_content_tree, hf_xplane_data_h, tvb_content, (xplane_DATA_STRUCT_LENGTH * i) + 32, 4, ENC_LITTLE_ENDIAN);
+            if (index > xplane_MAX_DATA_INDEX)
+            {
+                expert_add_info_format(pinfo, xplane_data_item, &ei_xplane_data_invalid_index, "Index %u is invalid. Expected value < %u", index, xplane_MAX_DATA_INDEX);
+            }
+            else
+            {
+                proto_tree* xplane_dataitem_tree = proto_tree_add_subtree_format(xplane_data_tree, tvb_content, xplane_DATA_STRUCT_LENGTH * i, xplane_DATA_STRUCT_LENGTH, ett_xplane_data, NULL, "DATA Index: %02d %s", index, wmem_strbuf_get_str(xplane_data_lookup_table[index][0]));
+                proto_item* itm_index = proto_tree_add_item(xplane_dataitem_tree, hf_xplane_data_index, tvb_content, (xplane_DATA_STRUCT_LENGTH * i), 4, ENC_LITTLE_ENDIAN);
+                proto_item* itm_A = proto_tree_add_item(xplane_dataitem_tree, hf_xplane_data_a, tvb_content, (xplane_DATA_STRUCT_LENGTH * i) + 4, 4, ENC_LITTLE_ENDIAN);
+                proto_item* itm_B = proto_tree_add_item(xplane_dataitem_tree, hf_xplane_data_b, tvb_content, (xplane_DATA_STRUCT_LENGTH * i) + 8, 4, ENC_LITTLE_ENDIAN);
+                proto_item* itm_C = proto_tree_add_item(xplane_dataitem_tree, hf_xplane_data_c, tvb_content, (xplane_DATA_STRUCT_LENGTH * i) + 12, 4, ENC_LITTLE_ENDIAN);
+                proto_item* itm_D = proto_tree_add_item(xplane_dataitem_tree, hf_xplane_data_d, tvb_content, (xplane_DATA_STRUCT_LENGTH * i) + 16, 4, ENC_LITTLE_ENDIAN);
+                proto_item* itm_E = proto_tree_add_item(xplane_dataitem_tree, hf_xplane_data_e, tvb_content, (xplane_DATA_STRUCT_LENGTH * i) + 20, 4, ENC_LITTLE_ENDIAN);
+                proto_item* itm_F = proto_tree_add_item(xplane_dataitem_tree, hf_xplane_data_f, tvb_content, (xplane_DATA_STRUCT_LENGTH * i) + 24, 4, ENC_LITTLE_ENDIAN);
+                proto_item* itm_G = proto_tree_add_item(xplane_dataitem_tree, hf_xplane_data_g, tvb_content, (xplane_DATA_STRUCT_LENGTH * i) + 28, 4, ENC_LITTLE_ENDIAN);
+                proto_item* itm_H = proto_tree_add_item(xplane_dataitem_tree, hf_xplane_data_h, tvb_content, (xplane_DATA_STRUCT_LENGTH * i) + 32, 4, ENC_LITTLE_ENDIAN);
+
+                proto_item_append_text(itm_index, "   %s", wmem_strbuf_get_str(xplane_data_lookup_table[index][0]));
+                proto_item_append_text(itm_A, "   %s", wmem_strbuf_get_str(xplane_data_lookup_table[index][1]));
+                proto_item_append_text(itm_B, "   %s", wmem_strbuf_get_str(xplane_data_lookup_table[index][2]));
+                proto_item_append_text(itm_C, "   %s", wmem_strbuf_get_str(xplane_data_lookup_table[index][3]));
+                proto_item_append_text(itm_D, "   %s", wmem_strbuf_get_str(xplane_data_lookup_table[index][4]));
+                proto_item_append_text(itm_E, "   %s", wmem_strbuf_get_str(xplane_data_lookup_table[index][5]));
+                proto_item_append_text(itm_F, "   %s", wmem_strbuf_get_str(xplane_data_lookup_table[index][6]));
+                proto_item_append_text(itm_G, "   %s", wmem_strbuf_get_str(xplane_data_lookup_table[index][7]));
+                proto_item_append_text(itm_H, "   %s", wmem_strbuf_get_str(xplane_data_lookup_table[index][8]));
+            }
         }
     }
     return tvb_captured_length(tvb);
@@ -1431,7 +2417,7 @@ static int dissect_xplane_rref_in(tvbuff_t* tvb, packet_info* pinfo, proto_tree*
     col_append_fstr(pinfo->cinfo, COL_INFO, " Id=%d, Freq=%d, RRef=%s", id, frequency, rref);
 
     conversation_t* conv = conversation_new_by_id(pinfo->num, ENDPOINT_UDP, id, 0);
-    conversation_add_proto_data(conv, proto_xplane, (void*) rref);
+    conversation_add_proto_data(conv, proto_xplane, (void*)rref);
 
     return tvb_captured_length(tvb);
 }
@@ -1653,7 +2639,7 @@ static int dissect_xplane_vehx(tvbuff_t* tvb, packet_info* pinfo _U_, proto_tree
         tvbuff_t* tvb_content = tvb_new_subset_length(tvb, xplane_HEADER_LENGTH, -1);
 
         gint32 id = 0;
-        proto_item* id_item = proto_tree_add_item_ret_int(xplane_vehx_tree, hf_xplane_vehx_id, tvb_content, 0, 4, ENC_LITTLE_ENDIAN,&id);
+        proto_item* id_item = proto_tree_add_item_ret_int(xplane_vehx_tree, hf_xplane_vehx_id, tvb_content, 0, 4, ENC_LITTLE_ENDIAN, &id);
         proto_item* latitude_item = proto_tree_add_item(xplane_vehx_tree, hf_xplane_vehx_latitude, tvb_content, 4, 8, ENC_LITTLE_ENDIAN);
         proto_item* longitude_item = proto_tree_add_item(xplane_vehx_tree, hf_xplane_vehx_longitude, tvb_content, 12, 8, ENC_LITTLE_ENDIAN);
         proto_item* elevation_item = proto_tree_add_item(xplane_vehx_tree, hf_xplane_vehx_elevation, tvb_content, 20, 8, ENC_LITTLE_ENDIAN);
@@ -1661,12 +2647,12 @@ static int dissect_xplane_vehx(tvbuff_t* tvb, packet_info* pinfo _U_, proto_tree
         proto_item* pitch_item = proto_tree_add_item(xplane_vehx_tree, hf_xplane_vehx_pitch, tvb_content, 32, 4, ENC_LITTLE_ENDIAN);
         proto_item* roll_item = proto_tree_add_item(xplane_vehx_tree, hf_xplane_vehx_roll, tvb_content, 36, 4, ENC_LITTLE_ENDIAN);
 
-        gdouble latitude    = tvb_get_ieee_double(tvb_content, 4, ENC_LITTLE_ENDIAN);
-        gdouble longitude   = tvb_get_ieee_double(tvb_content, 12, ENC_LITTLE_ENDIAN);
-        gdouble elevation   = tvb_get_ieee_double(tvb_content, 20, ENC_LITTLE_ENDIAN);
-        gfloat  heading     = tvb_get_ieee_float(tvb_content, 28, ENC_LITTLE_ENDIAN);
-        gfloat  pitch       = tvb_get_ieee_float(tvb_content, 32, ENC_LITTLE_ENDIAN);
-        gfloat  roll        = tvb_get_ieee_float(tvb_content, 36, ENC_LITTLE_ENDIAN);
+        gdouble latitude = tvb_get_ieee_double(tvb_content, 4, ENC_LITTLE_ENDIAN);
+        gdouble longitude = tvb_get_ieee_double(tvb_content, 12, ENC_LITTLE_ENDIAN);
+        gdouble elevation = tvb_get_ieee_double(tvb_content, 20, ENC_LITTLE_ENDIAN);
+        gfloat  heading = tvb_get_ieee_float(tvb_content, 28, ENC_LITTLE_ENDIAN);
+        gfloat  pitch = tvb_get_ieee_float(tvb_content, 32, ENC_LITTLE_ENDIAN);
+        gfloat  roll = tvb_get_ieee_float(tvb_content, 36, ENC_LITTLE_ENDIAN);
 
         if (id < 0 || id > 19)
             expert_add_info_format(pinfo, id_item, &ei_xplane_vehx_id, "The provided Id [%u] must be either 0 (own Aircraft) or 1->19 (AI Aircraft).", id);
@@ -1686,15 +2672,14 @@ static int dissect_xplane_vehx(tvbuff_t* tvb, packet_info* pinfo _U_, proto_tree
     return tvb_captured_length(tvb);
 }
 
-static gboolean validate_header(tvbuff_t* tvb, packet_info* pinfo)
+static gboolean validate_header(tvbuff_t* tvb)
 {
     guint8* bytes = tvb_get_string_enc(wmem_packet_scope(), tvb, 0, 4, ENC_ASCII | ENC_NA);
-    guint packet_length = tvb_captured_length(tvb);
 
     return ((g_ascii_strncasecmp(bytes, "ACFN", 4) == 0) ||
         (g_ascii_strncasecmp(bytes, "ACPR", 4) == 0) ||
         (g_ascii_strncasecmp(bytes, "ALRT", 4) == 0) ||
-        (g_ascii_strncasecmp(bytes, "BECN", 4) == 0 && pinfo->destport == xplane_pref_becn_port) ||
+        (g_ascii_strncasecmp(bytes, "BECN", 4) == 0) ||
         (g_ascii_strncasecmp(bytes, "CMND", 4) == 0) ||
         (g_ascii_strncasecmp(bytes, "DATA", 4) == 0) ||
         (g_ascii_strncasecmp(bytes, "DCOC", 4) == 0) ||
@@ -1714,15 +2699,15 @@ static gboolean validate_header(tvbuff_t* tvb, packet_info* pinfo)
         (g_ascii_strncasecmp(bytes, "RADR", 4) == 0) ||
         (g_ascii_strncasecmp(bytes, "RECO", 4) == 0) ||
         (g_ascii_strncasecmp(bytes, "RESE", 4) == 0) ||
-        (g_ascii_strncasecmp(bytes, "RPOS", 4) == 0 /*&& (packet_length < 10 || packet_length == xplane_RPOS_OUT_PACKET_LENGTH)*/) ||
-        (g_ascii_strncasecmp(bytes, "RREF", 4) == 0 /*&& (packet_length == xplane_RREF_IN_PACKET_LENGTH || (packet_length - 5) % 8 == 0)*/) ||
-        (g_ascii_strncasecmp(bytes, "SHUT", 4) == 0 /*&& packet_length == xplane_SHUT_PACKET_LENGTH*/) ||
+        (g_ascii_strncasecmp(bytes, "RPOS", 4) == 0) ||
+        (g_ascii_strncasecmp(bytes, "RREF", 4) == 0) ||
+        (g_ascii_strncasecmp(bytes, "SHUT", 4) == 0) ||
         (g_ascii_strncasecmp(bytes, "SIMO", 4) == 0) ||
         (g_ascii_strncasecmp(bytes, "SOUN", 4) == 0) ||
         (g_ascii_strncasecmp(bytes, "SSND", 4) == 0) ||
-        (g_ascii_strncasecmp(bytes, "UCOC", 4) == 0 && ((packet_length - 5) % xplane_DATA_INDEX_LENGTH) == 0) ||
-        (g_ascii_strncasecmp(bytes, "USEL", 4) == 0 && ((packet_length - 5) % xplane_DATA_INDEX_LENGTH) == 0) ||
-        (g_ascii_strncasecmp(bytes, "VEHX", 4) == 0 && packet_length == xplane_VEHX_PACKET_LENGTH));
+        (g_ascii_strncasecmp(bytes, "UCOC", 4) == 0) ||
+        (g_ascii_strncasecmp(bytes, "USEL", 4) == 0) ||
+        (g_ascii_strncasecmp(bytes, "VEHX", 4) == 0));
 }
 
 static int dissect_xplane(tvbuff_t* tvb, packet_info* pinfo, proto_tree* tree, void* data _U_)
@@ -1730,10 +2715,8 @@ static int dissect_xplane(tvbuff_t* tvb, packet_info* pinfo, proto_tree* tree, v
     if (tvb_reported_length(tvb) < xplane_MIN_PACKET_LENGTH || tvb_captured_length(tvb) < xplane_MIN_PACKET_LENGTH)
         return 0;
 
-//    if !(xplane_pref_udp_listener_port != 0 && (xplane_pref_udp_listener_port == pinfo->srcport || xplane_pref_udp_listener_port == pinfo->destport))
-//        return 0;
-
-    if (!validate_header(tvb, pinfo))
+    // If we don't recognise the header don't process it.
+    if (!validate_header(tvb))
         return 0;
 
     guint8* bytes = tvb_get_string_enc(wmem_packet_scope(), tvb, 0, 4, ENC_ASCII | ENC_NA);
@@ -1825,21 +2808,12 @@ static int dissect_xplane(tvbuff_t* tvb, packet_info* pinfo, proto_tree* tree, v
     else if (g_ascii_strncasecmp(bytes, "SSND", 4) == 0)
         return dissect_xplane_ssnd(tvb, pinfo, tree, data);
     else if (g_ascii_strncasecmp(bytes, "UCOC", 4) == 0)
-    {
-        if (((tvb_captured_length(tvb) - 5) % 4) != 0)
-            return 0;
         return dissect_xplane_ucoc(tvb, pinfo, tree, data);
-    }
     else if (g_ascii_strncasecmp(bytes, "USEL", 4) == 0)
-    {
-        if (((tvb_captured_length(tvb) - 5) % 4) != 0)
-            return 0;
         return dissect_xplane_usel(tvb, pinfo, tree, data);
-    }
     else if (g_ascii_strncasecmp(bytes, "VEHX", 4) == 0)
         return dissect_xplane_vehx(tvb, pinfo, tree, data);
 
-    //Packet Header not recognised - return that we didn't process it.
     return 0;
 }
 
@@ -1882,7 +2856,7 @@ void proto_register_xplane(void)
     };
     static hf_register_info hf_xplane_becn[] =
     {
-        { &hf_xplane_becn_header,   { "Header",         "xplane.becn",            FT_STRINGZ, BASE_NONE,  NULL,   0,  "Beacon Header",                                          HFILL}},
+        { &hf_xplane_becn_header,   { "Header",         "xplane.becn",            FT_STRINGZ, BASE_NONE,  NULL,   0,  "BECN - I Am Here packet from X-Plane",                                          HFILL}},
         { &hf_xplane_becn_major,    { "Major Version",  "xplane.becn.major",      FT_UINT8,   BASE_DEC,   NULL,   0,  "The Major Version for this BECN packet.",                HFILL}},
         { &hf_xplane_becn_minor,    { "Minor Version",  "xplane.becn.minor",      FT_UINT8,   BASE_DEC,   NULL,   0,  "The Major Version for this BECN packet.",                HFILL}},
         { &hf_xplane_becn_hostid,   { "Host ID",        "xplane.becn.hostid",     FT_INT32,   BASE_DEC,   VALS(xplane_vals_Becn_HostID),   0,  "The application type. 1=X-Plane, 2=Planemaker.",          HFILL}},
@@ -1894,13 +2868,13 @@ void proto_register_xplane(void)
     };
     static hf_register_info hf_xplane_cmnd[] =
     {
-        { &hf_xplane_cmnd_header,   { "Header",     "xplane.cmnd",          FT_STRINGZ,    BASE_NONE,  NULL,   0,  "CMND Header",  HFILL}},
+        { &hf_xplane_cmnd_header,   { "Header",     "xplane.cmnd",          FT_STRINGZ,    BASE_NONE,  NULL,   0,  "CMND - Send a Command to X-Plane",  HFILL}},
         { &hf_xplane_cmnd_command,  { "Command",    "xplane.cmnd.command",  FT_STRINGZPAD, BASE_NONE,  NULL,   0,  "The command to be executed", HFILL}}
     };
     static hf_register_info hf_xplane_data[] =
     {
-        { &hf_xplane_data_header,   { "Header", "xplane.data",          FT_STRINGZ, BASE_NONE,  NULL,   0,  "DATA Header",  HFILL}},
-        { &hf_xplane_data_index,    { "Index",  "xplane.data.index",    FT_INT32,   BASE_DEC,   NULL,   0,  "DATA Index",   HFILL}},
+        { &hf_xplane_data_header,   { "Header", "xplane.data",          FT_STRINGZ, BASE_NONE,  NULL,   0,  "DATA - As Configured with X-Plane",  HFILL}},
+        { &hf_xplane_data_index,    { "Index",  "xplane.data.index",    FT_INT32,   BASE_DEC ,  NULL,   0,  "DATA Index",   HFILL}},
         { &hf_xplane_data_a,        { "A",      "xplane.data.a",        FT_FLOAT,   BASE_NONE,  NULL,   0,  "Item A",       HFILL}},
         { &hf_xplane_data_b,        { "B",      "xplane.data.b",        FT_FLOAT,   BASE_NONE,  NULL,   0,  "Item B",       HFILL}},
         { &hf_xplane_data_c,        { "C",      "xplane.data.c",        FT_FLOAT,   BASE_NONE,  NULL,   0,  "Item C",       HFILL}},
@@ -1912,12 +2886,12 @@ void proto_register_xplane(void)
     };
     static hf_register_info hf_xplane_dcoc[] =
     {
-        { &hf_xplane_dcoc_header,   { "Header", "xplane.dcoc",      FT_STRINGZ, BASE_NONE,  NULL,   0,  "DCOC Header",  HFILL}},
+        { &hf_xplane_dcoc_header,   { "Header", "xplane.dcoc",      FT_STRINGZ, BASE_NONE,  NULL,   0,  "DCOC - Disable Cockpit Output",  HFILL}},
         { &hf_xplane_dcoc_id,       { "Id",     "xplane.dcoc.id",   FT_INT32,   BASE_DEC,   NULL,   0,  "A Data row id.",      HFILL}}
     };
     static hf_register_info hf_xplane_dref[] =
     {
-        { &hf_xplane_dref_header,   { "Header",     "xplane.dref",          FT_STRINGZ,    BASE_NONE,  NULL,   0,  "DREF Header",  HFILL}},
+        { &hf_xplane_dref_header,   { "Header",     "xplane.dref",          FT_STRINGZ,    BASE_NONE,  NULL,   0,  "DREF - Explicitly set a DataRaf Value",  HFILL}},
         { &hf_xplane_dref_value,    { "Value",      "xplane.dref.value",    FT_FLOAT,      BASE_NONE,  NULL,   0,  "The value to set the dataref to.",        HFILL}},
         { &hf_xplane_dref_dataref,  { "Dataref",    "xplane.dref.dataref",  FT_STRINGZPAD, BASE_NONE,  NULL,   0,  "The dataref to be set.",      HFILL}}
     };
@@ -1928,7 +2902,7 @@ void proto_register_xplane(void)
     };
     static hf_register_info hf_xplane_fail[] =
     {
-        { &hf_xplane_fail_header,   { "Header", "xplane.fail",      FT_STRINGZ, BASE_NONE,  NULL,   0,  "FAIL Header",  HFILL}},
+        { &hf_xplane_fail_header,   { "Header", "xplane.fail",      FT_STRINGZ, BASE_NONE,  NULL,   0,  "FAIL - Fail a System",  HFILL}},
         { &hf_xplane_fail_id,       { "Id",     "xplane.fail.id",   FT_STRINGZ, BASE_NONE,  NULL,   0,  "The id of the Plane System to fail.",      HFILL}}
     };
     static hf_register_info hf_xplane_flir_in[] =
@@ -1947,7 +2921,7 @@ void proto_register_xplane(void)
     };
     static hf_register_info hf_xplane_ise4[] =
     {
-        { &hf_xplane_ise4_header,       { "Header",         "xplane.ise4",              FT_STRINGZ,     BASE_NONE,  NULL,   0,  "ISE4 Header",  HFILL}},
+        { &hf_xplane_ise4_header,       { "Header",         "xplane.ise4",              FT_STRINGZ,     BASE_NONE,  NULL,   0,  "ISE4 - IPv4 Network Settings",  HFILL}},
         { &hf_xplane_ise4_machinetype,  { "Machine Type",   "xplane.ise4.machinetype",  FT_INT32,       BASE_DEC,   VALS(xplane_vals_ISEx_MachineType),   0,  "The network option for this packet", HFILL}},
         { &hf_xplane_ise4_address,      { "Address",        "xplane.ise4.address",      FT_STRINGZPAD,  BASE_NONE,  NULL,   0,  "The address to set.",      HFILL}},
         { &hf_xplane_ise4_port,         { "Port",           "xplane.ise4.port",         FT_STRINGZPAD,  BASE_NONE,  NULL,   0,  "The port to set.",         HFILL}},
@@ -1955,7 +2929,7 @@ void proto_register_xplane(void)
     };
     static hf_register_info hf_xplane_ise6[] =
     {
-        { &hf_xplane_ise6_header,       { "Header",         "xplane.ise6",              FT_STRINGZ,     BASE_NONE,  NULL,   0,  "ISE6 Header",  HFILL}},
+        { &hf_xplane_ise6_header,       { "Header",         "xplane.ise6",              FT_STRINGZ,     BASE_NONE,  NULL,   0,  "ISE6 - IPv6 Network Settings",  HFILL}},
         { &hf_xplane_ise6_machinetype,  { "Machine Type",   "xplane.ise6.machinetype",  FT_INT32,       BASE_DEC,   VALS(xplane_vals_ISEx_MachineType),   0,  "The network option for this packet", HFILL}},
         { &hf_xplane_ise6_address,      { "Address",        "xplane.ise6.address",      FT_STRINGZPAD,  BASE_NONE,  NULL,   0,  "The address to set.",      HFILL}},
         { &hf_xplane_ise6_port,         { "Port",           "xplane.ise6.port",         FT_STRINGZPAD,  BASE_NONE,  NULL,   0,  "The port to set.",         HFILL}},
@@ -1963,7 +2937,7 @@ void proto_register_xplane(void)
     };
     static hf_register_info hf_xplane_lsnd[] =
     {
-        { &hf_xplane_lsnd_header,   { "Header",     "xplane.lsnd",          FT_STRINGZ,     BASE_NONE,  NULL,   0,  "LSND Header",  HFILL}},
+        { &hf_xplane_lsnd_header,   { "Header",     "xplane.lsnd",          FT_STRINGZ,     BASE_NONE,  NULL,   0,  "LSND - Loop Sound",  HFILL}},
         { &hf_xplane_lsnd_index,    { "Index",      "xplane.lsnd.index",    FT_INT32,       BASE_DEC,   NULL,   0,  "Index (0->4)",        HFILL}},
         { &hf_xplane_lsnd_speed,    { "Speed",      "xplane.lsnd.speed",    FT_FLOAT,       BASE_NONE,  NULL,   0,  "Relative Speed (0->1)",        HFILL}},
         { &hf_xplane_lsnd_volume,   { "Volume",     "xplane.lsnd.volume",   FT_FLOAT,       BASE_NONE,  NULL,   0,  "Relative Volume (0->1)",       HFILL}},
@@ -1971,17 +2945,17 @@ void proto_register_xplane(void)
     };
     static hf_register_info hf_xplane_nfal[] =
     {
-        { &hf_xplane_nfal_header,       { "Header",         "xplane.nfal",      FT_STRINGZ, BASE_NONE,  NULL,   0,  "NFAL Header",  HFILL}},
+        { &hf_xplane_nfal_header,       { "Header",         "xplane.nfal",      FT_STRINGZ, BASE_NONE,  NULL,   0,  "NFAL - Fail a Navaid",  HFILL}},
         { &hf_xplane_nfal_navaidcode,   { "Navaid Code",    "xplane.nfal.id",   FT_STRINGZ, BASE_NONE,  NULL,   0,  "The NavAid to fail.", HFILL}},
     };
     static hf_register_info hf_xplane_nrec[] =
     {
-        { &hf_xplane_nrec_header,       { "Header",         "xplane.nrec",      FT_STRINGZ, BASE_NONE,  NULL,   0,  "NREC Header",  HFILL}},
+        { &hf_xplane_nrec_header,       { "Header",         "xplane.nrec",      FT_STRINGZ, BASE_NONE,  NULL,   0,  "NREC - Recover a Navaid",  HFILL}},
         { &hf_xplane_nrec_navaidcode,   { "Navaid Code",    "xplane.nrec.id",   FT_STRINGZ, BASE_NONE,  NULL,   0,  "The NavAid to recover.", HFILL}},
     };
     static hf_register_info hf_xplane_objl[] =
     {
-        { &hf_xplane_objl_header,       { "Header",     "xplane.objl",              FT_STRINGZ, BASE_NONE,   NULL,   0,  "OBJL Header",  HFILL}},
+        { &hf_xplane_objl_header,       { "Header",     "xplane.objl",              FT_STRINGZ, BASE_NONE,   NULL,   0,  "OBJL - Position an Object loaded via OBJN",  HFILL}},
         { &hf_xplane_objl_index,        { "Index",      "xplane.objl.index",        FT_INT32,   BASE_DEC,    NULL,   0,  "The index assigned to this object (see OBJN).",        HFILL}},
         { &hf_xplane_objl_padding1,     { "Padding",    "xplane.objl.padding1",     FT_BYTES,   BASE_NONE,   NULL,   0,  "4 bytes of padding",    HFILL}},
         { &hf_xplane_objl_latitude,     { "Latitude",   "xplane.objl.latitude",     FT_DOUBLE,  BASE_NONE,   NULL,   0,  "Latitude of the object centre",     HFILL}},
@@ -1996,13 +2970,13 @@ void proto_register_xplane(void)
     };
     static hf_register_info hf_xplane_objn[] =
     {
-        { &hf_xplane_objn_header,       { "Header",     "xplane.objn",              FT_STRINGZ,     BASE_NONE,  NULL,   0,  "OBJN Header",  HFILL}},
+        { &hf_xplane_objn_header,       { "Header",     "xplane.objn",              FT_STRINGZ,     BASE_NONE,  NULL,   0,  "OBJN - Load an object (position with OBJL)",  HFILL}},
         { &hf_xplane_objn_index,        { "Index",      "xplane.objn.index",        FT_INT32,       BASE_DEC,   NULL,   0,  "Index to assign to this object (See OBJL).",        HFILL}},
         { &hf_xplane_objn_filename,     { "Filename",   "xplane.objn.filename",     FT_STRINGZPAD,  BASE_NONE,  NULL,   0,  "OBJ7 filename relative to X-Plane hole folder",     HFILL}},
     };
     static hf_register_info hf_xplane_prel[] =
     {
-        { &hf_xplane_prel_header,           { "Header",             "xplane.prel",                  FT_STRINGZ, BASE_NONE,  NULL,   0,  "PREL Header",      HFILL}},
+        { &hf_xplane_prel_header,           { "Header",             "xplane.prel",                  FT_STRINGZ, BASE_NONE,  NULL,   0,  "PREL - Restart an aircraft",      HFILL}},
         { &hf_xplane_prel_starttype,        { "Start Type",         "xplane.prel.starttype",        FT_INT32,   BASE_DEC,   VALS(xplane_vals_StartType),   0,  "The Start Type to execute.",       HFILL}},
         { &hf_xplane_prel_aircraftindex,    { "Aircraft Index",     "xplane.prel.aircraftindex",    FT_INT32,   BASE_DEC,   NULL,   0,  "Aircraft Index (0=Own Plane, 1->19 = AI Plane).",            HFILL}},
         { &hf_xplane_prel_ICAO,             { "ICAO",               "xplane.prel.ICAO",             FT_STRING,  BASE_NONE,  NULL,   0,  "Airport / NavAid code to place the aircraft at. Note: Max 7 chars as the packet's struct is 8 chars including the ending '\0'.",             HFILL}},
@@ -2016,7 +2990,7 @@ void proto_register_xplane(void)
     };
     static hf_register_info hf_xplane_quit[] =
     {
-        { &hf_xplane_quit_header,   { "Header", "xplane.quit", FT_STRINGZ, BASE_NONE, NULL, 0, "QUIT Header", HFILL}},
+        { &hf_xplane_quit_header,   { "Header", "xplane.quit", FT_STRINGZ, BASE_NONE, NULL, 0, "QUIT - Goodbye!", HFILL}},
     };
     static hf_register_info hf_xplane_radr_in[] =
     {
@@ -2033,12 +3007,12 @@ void proto_register_xplane(void)
     };
     static hf_register_info hf_xplane_reco[] =
     {
-        { &hf_xplane_reco_header,   { "Header", "xplane.reco",      FT_STRINGZ, BASE_NONE,  NULL,   0,  "RECO Header",  HFILL}},
+        { &hf_xplane_reco_header,   { "Header", "xplane.reco",      FT_STRINGZ, BASE_NONE,  NULL,   0,  "RECO - Recover a plane system",  HFILL}},
         { &hf_xplane_reco_id,       { "Id",     "xplane.reco.id",   FT_STRINGZ, BASE_NONE,  NULL,   0,  "Id of the plane system to recover",           HFILL}}
     };
     static hf_register_info hf_xplane_rese[] =
     {
-        { &hf_xplane_rese_header,   { "Header", "xplane.rese",      FT_STRINGZ, BASE_NONE,  NULL,   0,  "RESE Header",  HFILL}},
+        { &hf_xplane_rese_header,   { "Header", "xplane.rese",      FT_STRINGZ, BASE_NONE,  NULL,   0,  "RESE - Reset all plane systems",  HFILL}},
     };
     static hf_register_info hf_xplane_rpos_in[] =
     {
@@ -2078,24 +3052,24 @@ void proto_register_xplane(void)
     };
     static hf_register_info hf_xplane_shut[] =
     {
-        { &hf_xplane_shut_header,   { "Header", "xplane.shut",      FT_STRINGZ, BASE_NONE,  NULL,   0,  "SHUT Header",  HFILL}},
+        { &hf_xplane_shut_header,   { "Header", "xplane.shut",      FT_STRINGZ, BASE_NONE,  NULL,   0,  "SHUT - Shutdown the computer!",  HFILL}},
     };
     static hf_register_info hf_xplane_simo[] =
     {
-        { &hf_xplane_simo_header,   { "Header", "xplane.simo",          FT_STRINGZ,     BASE_NONE,  NULL,   0,  "SIMO Header",  HFILL}},
+        { &hf_xplane_simo_header,   { "Header", "xplane.simo",          FT_STRINGZ,     BASE_NONE,  NULL,   0,  "SIMO - Load/Save a File/Simulation",  HFILL}},
         { &hf_xplane_simo_action,   { "Header", "xplane.simo.action",   FT_INT32,       BASE_DEC,   VALS(xplane_vals_Simo_ActionID),   0,  "Action to take",       HFILL}},
         { &hf_xplane_simo_filename, { "Header", "xplane.simo.filename", FT_STRINGZPAD,  BASE_NONE,  NULL,   0,  "Filename relative to X-Plane home folder.",     HFILL}}
     };
     static hf_register_info hf_xplane_soun[] =
     {
-        { &hf_xplane_soun_header,   { "Header",     "xplane.soun",          FT_STRINGZ,     BASE_NONE,  NULL,   0,  "SOUN Header",  HFILL}},
+        { &hf_xplane_soun_header,   { "Header",     "xplane.soun",          FT_STRINGZ,     BASE_NONE,  NULL,   0,  "SOUN - Play a sound file",  HFILL}},
         { &hf_xplane_soun_frequency,{ "Frequency",  "xplane.soun.frequency",FT_FLOAT,       BASE_NONE,  NULL,   0,  "Relative Speed (0->1)",        HFILL}},
         { &hf_xplane_soun_volume,   { "Volume",     "xplane.soun.volume",   FT_FLOAT,       BASE_NONE,  NULL,   0,  "Relative Volume (0->1)",       HFILL}},
         { &hf_xplane_soun_filename, { "Filename",   "xplane.soun.filename", FT_STRINGZPAD,  BASE_NONE,  NULL,   0,  "Relative Filename from the X-Plane home directory. Use Unix-style / seperators. (Max 500)",     HFILL}}
     };
     static hf_register_info hf_xplane_ssnd[] =
     {
-        { &hf_xplane_ssnd_header,   { "Header",     "xplane.ssnd",          FT_STRINGZ,     BASE_NONE,  NULL,   0,  "SSND Header",  HFILL}},
+        { &hf_xplane_ssnd_header,   { "Header",     "xplane.ssnd",          FT_STRINGZ,     BASE_NONE,  NULL,   0,  "SSND - Load a sound file",  HFILL}},
         { &hf_xplane_ssnd_index,    { "Index",      "xplane.ssnd.index",    FT_INT32,       BASE_DEC,   NULL,   0,  "Index (0->4)",        HFILL}},
         { &hf_xplane_ssnd_speed,    { "Speed",      "xplane.ssnd.speed",    FT_FLOAT,       BASE_NONE,  NULL,   0,  "Relative Speed (0->1)",        HFILL}},
         { &hf_xplane_ssnd_volume,   { "Volume",     "xplane.ssnd.volume",   FT_FLOAT,       BASE_NONE,  NULL,   0,  "Relative Volume (0->1)",       HFILL}},
@@ -2113,7 +3087,7 @@ void proto_register_xplane(void)
     };
     static hf_register_info hf_xplane_vehx[] =
     {
-        { &hf_xplane_vehx_header,       { "Header",     "xplane.vehx",              FT_STRINGZ, BASE_NONE,  NULL,   0,  "VEHX Header",  HFILL}},
+        { &hf_xplane_vehx_header,       { "Header",     "xplane.vehx",              FT_STRINGZ, BASE_NONE,  NULL,   0,  "VEHX - Position a plane (disables and overrides physics engine)",  HFILL}},
         { &hf_xplane_vehx_id,           { "Id",         "xplane.vehx.id",           FT_INT32,   BASE_DEC,   NULL,   0,  "Aircraft Index (0=Own Plane, 1->19 = AI Plane).",            HFILL}},
         { &hf_xplane_vehx_latitude,     { "Latitude",   "xplane.vehx.latitude",     FT_DOUBLE,  BASE_NONE,  NULL,   0,  "Aircraft Latitude",     HFILL}},
         { &hf_xplane_vehx_longitude,    { "Longitude",  "xplane.vehx.longitude",    FT_DOUBLE,  BASE_NONE,  NULL,   0,  "Aircraft Longitude",    HFILL}},
@@ -2187,6 +3161,7 @@ void proto_register_xplane(void)
         { &ei_xplane_alrt_length,          { "xplane.ei.alrt.badlength",       PI_MALFORMED, PI_ERROR,       "Incorrect ALRT length", EXPFILL }},
 
         { &ei_xplane_data_length,          { "xplane.ei.data.badlength",       PI_MALFORMED, PI_ERROR,       "Incorrect DATA length", EXPFILL }},
+        { &ei_xplane_data_invalid_index,   { "xplane.ei.data.badindex",        PI_MALFORMED, PI_ERROR,       "Invalid Index", EXPFILL }},
 
         { &ei_xplane_dcoc_id,              { "xplane.ei.dcoc.id",              PI_PROTOCOL,  PI_NOTE,        "Invalid ID", EXPFILL }},
         { &ei_xplane_dcoc_length,          { "xplane.ei.dcoc.badlength",       PI_MALFORMED, PI_ERROR,       "Incorrect DCOC length", EXPFILL }},
@@ -2326,14 +3301,15 @@ void proto_reg_handoff_xplane(void)
     static dissector_handle_t xplane_becn_handle;
     static dissector_handle_t xplane_udp_handle;
 
-    static guint32 current_udp_listener_port;
-    static guint32 current_udp_sender_port;
-    static guint32 current_udp_external_app_port;
-    static guint32 current_becn_port;
+    static guint32 current_udp_listener_port = 0;
+    static guint32 current_udp_sender_port = 0;
+    static guint32 current_udp_external_app_port = 0;
+    static guint32 current_becn_port = 0;
 
     if (!initialized)
     {
         xplane_udp_handle = create_dissector_handle(dissect_xplane, proto_xplane);
+        xplane_becn_handle = create_dissector_handle(dissect_xplane, proto_xplane);
         initialized = TRUE;
     }
     else
@@ -2352,7 +3328,7 @@ void proto_reg_handoff_xplane(void)
     dissector_add_uint("udp.port", current_udp_listener_port, xplane_udp_handle);
     dissector_add_uint("udp.port", current_udp_sender_port, xplane_udp_handle);
     dissector_add_uint("udp.port", current_udp_external_app_port, xplane_udp_handle);
-    dissector_add_uint("udp.port", current_becn_port, xplane_udp_handle);
+    dissector_add_uint("udp.port", current_becn_port, xplane_becn_handle);
 }
 
 /*
