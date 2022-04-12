@@ -34,7 +34,7 @@ register_plugin_files(plugin.c
 	${DISSECTOR_SRC}
 )
 
-add_wireshark_plugin_library(xplane epan)
+add_plugin_library(xplane epan)
 
 target_link_libraries(xplane epan)
 
