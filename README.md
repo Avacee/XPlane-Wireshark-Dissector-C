@@ -46,7 +46,3 @@ Conversely to see all packet except BECN (as there are so many) filter on "xplan
 To only see those DATA packets with an index of 0 (Frame Rate Info) filter on "xplane.data.index == 0"  
 
 ###### TODO:
-[X] Add releases for Windows 3.4, Ubuntu 3.2.  
-[X] Use wireshark's expert mechanism instead of validate_packet() just returning 0.  
-[ ] Add descriptive lookups for DATA packets.  
-[X] Track RREF's.
