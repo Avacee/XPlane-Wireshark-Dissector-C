@@ -20,7 +20,7 @@
    By default X-Plane receives user's packets on port 49000 and transmits on 49001. There is a preference to set these ports if they are changed within X-Plane.
    X-Plane also transmits from port 49002 for the FLIR packets but this is obsolete in version 11.50 onwards. There is a preference for the FLIR Packet port.
   */
-#include <config.h> 
+#include <config.h>
 
 #if 0
   /* "System" includes used only as needed */
@@ -36,6 +36,7 @@
 #include <epan/expert.h>
 #include <epan/conversation.h>
 
+#include <wsutil/plugins.h>
 #include <wsutil/str_util.h>
 #include <wsutil/wmem/wmem_strbuf.h>
 
@@ -50,7 +51,7 @@ static expert_field ei_xplane = EI_INIT;
 #define xplane_HEADER_LENGTH 5
 #define xplane_MIN_PACKET_LENGTH 5
 
-// ---------- ACFN Declarations ---------- 
+// ---------- ACFN Declarations ----------
 #define xplane_ACFN_PACKET_LENGTH 165
 
 static gint ett_xplane_acfn = -1;
@@ -68,7 +69,7 @@ static expert_field ei_xplane_acfn_id = EI_INIT;
 static expert_field ei_xplane_acfn_livery = EI_INIT;
 static expert_field ei_xplane_acfn_path_seperator = EI_INIT;
 
-// ---------- ACPR Declarations ---------- 
+// ---------- ACPR Declarations ----------
 #define xplane_ACPR_PACKET_LENGTH 229
 
 static gint ett_xplane_acpr = -1;
@@ -100,7 +101,7 @@ static expert_field ei_xplane_acpr_elevation = EI_INIT;
 static expert_field ei_xplane_acpr_trueheading = EI_INIT;
 static expert_field ei_xplane_acpr_speed = EI_INIT;
 
-// ---------- ALRT Declarations ---------- 
+// ---------- ALRT Declarations ----------
 #define xplane_ALRT_PACKET_LENGTH 965
 
 static gint ett_xplane_alrt = -1;
@@ -113,7 +114,7 @@ static int hf_xplane_alrt_line4 = -1;
 
 static expert_field ei_xplane_alrt_length = EI_INIT;
 
-// ---------- BECN Declarations ---------- 
+// ---------- BECN Declarations ----------
 static gint ett_xplane_becn = -1;
 
 static int hf_xplane_becn_header = -1;
@@ -126,13 +127,13 @@ static int hf_xplane_becn_port = -1;
 static int hf_xplane_becn_name = -1;
 static int hf_xplane_becn_raknetport = -1;
 
-// ---------- CMND Declarations ---------- 
+// ---------- CMND Declarations ----------
 static gint ett_xplane_cmnd = -1;
 
 static int hf_xplane_cmnd_header = -1;
 static int hf_xplane_cmnd_command = -1;
 
-// ---------- DATA Declarations ---------- 
+// ---------- DATA Declarations ----------
 #define xplane_DATA_STRUCT_LENGTH 36
 #define xplane_DATA_INDEX_LENGTH 4
 
@@ -152,7 +153,7 @@ static int hf_xplane_data_h = -1;
 static expert_field ei_xplane_data_length = EI_INIT;
 static expert_field ei_xplane_data_invalid_index = EI_INIT;
 
-// ---------- DCOC Declarations ---------- 
+// ---------- DCOC Declarations ----------
 static gint ett_xplane_dcoc = -1;
 
 static int hf_xplane_dcoc_header = -1;
@@ -161,7 +162,7 @@ static int hf_xplane_dcoc_id = -1;
 static expert_field ei_xplane_dcoc_length = EI_INIT;
 static expert_field ei_xplane_dcoc_id = EI_INIT;
 
-// ---------- DREF Declarations ---------- 
+// ---------- DREF Declarations ----------
 #define xplane_DREF_PACKET_LENGTH 509
 
 static gint ett_xplane_dref = -1;
@@ -172,7 +173,7 @@ static int hf_xplane_dref_dataref = -1;
 
 static expert_field ei_xplane_dref_length = EI_INIT;
 
-// ---------- DSEL Declarations ---------- 
+// ---------- DSEL Declarations ----------
 static gint ett_xplane_dsel = -1;
 
 static int hf_xplane_dsel_header = -1;
@@ -181,19 +182,19 @@ static int hf_xplane_dsel_id = -1;
 static expert_field ei_xplane_dsel_id = EI_INIT;
 static expert_field ei_xplane_dsel_length = EI_INIT;
 
-// ---------- FAIL Declarations ---------- 
+// ---------- FAIL Declarations ----------
 static gint ett_xplane_fail = -1;
 
 static int hf_xplane_fail_header = -1;
 static int hf_xplane_fail_id = -1;
 
-// ---------- FLIR IN Declarations ---------- 
+// ---------- FLIR IN Declarations ----------
 static gint ett_xplane_flir_in = -1;
 
 static int hf_xplane_flir_in_header = -1;
 static int hf_xplane_flir_in_framerate = -1;
 
-// ---------- FLIR OUT Declarations ---------- 
+// ---------- FLIR OUT Declarations ----------
 static gint ett_xplane_flir_out = -1;
 
 static int hf_xplane_flir_out_header = -1;
@@ -203,7 +204,7 @@ static int hf_xplane_flir_out_frameindex = -1;
 static int hf_xplane_flir_out_framecount = -1;
 static int hf_xplane_flir_out_imagedata = -1;
 
-// ---------- ISE4 Declarations ---------- 
+// ---------- ISE4 Declarations ----------
 #define xplane_ISE4_PACKET_LENGTH 37
 
 static gint ett_xplane_ise4 = -1;
@@ -216,7 +217,7 @@ static int hf_xplane_ise4_enabled = -1;
 
 static expert_field ei_xplane_ise4_length = EI_INIT;
 
-// ---------- ISE6 Declarations ---------- 
+// ---------- ISE6 Declarations ----------
 #define xplane_ISE6_PACKET_LENGTH 85
 
 static gint ett_xplane_ise6 = -1;
@@ -229,7 +230,7 @@ static int hf_xplane_ise6_enabled = -1;
 
 static expert_field ei_xplane_ise6_length = EI_INIT;
 
-// ---------- LSND Declarations ---------- 
+// ---------- LSND Declarations ----------
 #define xplane_LSND_PACKET_LENGTH 517
 
 static gint ett_xplane_lsnd = -1;
@@ -245,7 +246,7 @@ static expert_field ei_xplane_lsnd_frequency = EI_INIT;
 static expert_field ei_xplane_lsnd_volume = EI_INIT;
 static expert_field ei_xplane_lsnd_length = EI_INIT;
 
-// ---------- NFAL Declarations ---------- 
+// ---------- NFAL Declarations ----------
 static gint ett_xplane_nfal = -1;
 
 static int hf_xplane_nfal_header = -1;
@@ -253,7 +254,7 @@ static int hf_xplane_nfal_navaidcode = -1;
 
 static expert_field ei_xplane_nfal_length = EI_INIT;
 
-// ---------- NREC Declarations ---------- 
+// ---------- NREC Declarations ----------
 static gint ett_xplane_nrec = -1;
 
 static int hf_xplane_nrec_header = -1;
@@ -261,7 +262,7 @@ static int hf_xplane_nrec_navaidcode = -1;
 
 static expert_field ei_xplane_nrec_length = EI_INIT;
 
-// ---------- OBJL Declarations ---------- 
+// ---------- OBJL Declarations ----------
 #define xplane_OBJL_PACKET_LENGTH 61
 
 static gint ett_xplane_objl = -1;
@@ -289,7 +290,7 @@ static expert_field ei_xplane_objl_phi = EI_INIT;
 static expert_field ei_xplane_objl_onground = EI_INIT;
 static expert_field ei_xplane_objl_smokesize = EI_INIT;
 
-// ---------- OBJN Declarations ---------- 
+// ---------- OBJN Declarations ----------
 #define xplane_OBJN_PACKET_LENGTH 509
 
 static gint ett_xplane_objn = -1;
@@ -300,7 +301,7 @@ static int hf_xplane_objn_filename = -1;
 
 static expert_field ei_xplane_objn_length = EI_INIT;
 
-// ---------- PREL Declarations ---------- 
+// ---------- PREL Declarations ----------
 #define xplane_PREL_PACKET_LENGTH 69
 
 static gint ett_xplane_prel = -1;
@@ -328,7 +329,7 @@ static expert_field ei_xplane_prel_elevation = EI_INIT;
 static expert_field ei_xplane_prel_trueheading = EI_INIT;
 static expert_field ei_xplane_prel_speed = EI_INIT;
 
-// ---------- QUIT Declarations ---------- 
+// ---------- QUIT Declarations ----------
 #define xplane_QUIT_PACKET_LENGTH xplane_MIN_PACKET_LENGTH
 
 static gint ett_xplane_quit = -1;
@@ -337,13 +338,13 @@ static int hf_xplane_quit_header = -1;
 
 static expert_field ei_xplane_quit_length = EI_INIT;
 
-// ---------- RADR IN Declarations ---------- 
+// ---------- RADR IN Declarations ----------
 static gint ett_xplane_radr_in = -1;
 
 static int hf_xplane_radr_in_header = -1;
 static int hf_xplane_radr_in_pointcount = -1;
 
-// ---------- RADR OUT Declarations ---------- 
+// ---------- RADR OUT Declarations ----------
 #define xplane_RADR_OUT_STRUCT_LENGTH 13
 
 static gint ett_xplane_radr_out = -1;
@@ -356,13 +357,13 @@ static int hf_xplane_radr_out_height = -1;
 
 static expert_field ei_xplane_radr_out_length = EI_INIT;
 
-// ---------- RECO Declarations ---------- 
+// ---------- RECO Declarations ----------
 static gint ett_xplane_reco = -1;
 
 static int hf_xplane_reco_header = -1;
 static int hf_xplane_reco_id = -1;
 
-// ---------- RESE Declarations ---------- 
+// ---------- RESE Declarations ----------
 #define xplane_RESE_PACKET_LENGTH xplane_MIN_PACKET_LENGTH
 
 static gint ett_xplane_rese = -1;
@@ -371,7 +372,7 @@ static int hf_xplane_rese_header = -1;
 
 static expert_field ei_xplane_rese_length = EI_INIT;
 
-// ---------- RPOS IN Declarations ---------- 
+// ---------- RPOS IN Declarations ----------
 static gint ett_xplane_rpos_in = -1;
 
 static int hf_xplane_rpos_in_header = -1;
@@ -379,7 +380,7 @@ static int hf_xplane_rpos_in_frequency = -1;
 
 static expert_field ei_xplane_rpos_in_length = EI_INIT;
 
-// ---------- RPOS OUT Declarations ---------- 
+// ---------- RPOS OUT Declarations ----------
 #define xplane_RPOS_OUT_PACKET_LENGTH 69
 
 static gint ett_xplane_rpos_out = -1;
@@ -401,7 +402,7 @@ static int hf_xplane_rpos_out_yawrate = -1;
 
 static expert_field ei_xplane_rpos_out_length = EI_INIT;
 
-// ---------- RREF IN Declarations ---------- 
+// ---------- RREF IN Declarations ----------
 #define xplane_RREF_IN_PACKET_LENGTH 413
 
 static gint ett_xplane_rref_in = -1;
@@ -411,7 +412,7 @@ static int hf_xplane_rref_in_frequency = -1;
 static int hf_xplane_rref_in_id = -1;
 static int hf_xplane_rref_in_dataref = -1;
 
-// ---------- RREF OUT Declarations ---------- 
+// ---------- RREF OUT Declarations ----------
 static gint ett_xplane_rref_out = -1;
 
 static int hf_xplane_rref_out_header = -1;
@@ -419,7 +420,7 @@ static int hf_xplane_rref_out_id = -1;
 static int hf_xplane_rref_out_value = -1;
 static int hf_xplane_rref_out_idlink = -1;
 
-// ---------- SHUT Declarations ---------- 
+// ---------- SHUT Declarations ----------
 #define xplane_SHUT_PACKET_LENGTH xplane_MIN_PACKET_LENGTH
 
 static gint ett_xplane_shut = -1;
@@ -428,7 +429,7 @@ static int hf_xplane_shut_header = -1;
 
 static expert_field ei_xplane_shut_length = EI_INIT;
 
-// ---------- SIMO Declarations ---------- 
+// ---------- SIMO Declarations ----------
 static gint ett_xplane_simo = -1;
 
 static int hf_xplane_simo_header = -1;
@@ -437,7 +438,7 @@ static int hf_xplane_simo_filename = -1;
 
 static expert_field ei_xplane_simo_actionid = EI_INIT;
 
-// ---------- SOUN Declarations ---------- 
+// ---------- SOUN Declarations ----------
 #define xplane_SOUN_PACKET_LENGTH 513
 
 static gint ett_xplane_soun = -1;
@@ -451,7 +452,7 @@ static expert_field ei_xplane_soun_frequency = EI_INIT;
 static expert_field ei_xplane_soun_volume = EI_INIT;
 static expert_field ei_xplane_soun_length = EI_INIT;
 
-// ---------- SSND Declarations ---------- 
+// ---------- SSND Declarations ----------
 #define xplane_SSND_PACKET_LENGTH 517
 
 static gint ett_xplane_ssnd = -1;
@@ -467,7 +468,7 @@ static expert_field ei_xplane_ssnd_frequency = EI_INIT;
 static expert_field ei_xplane_ssnd_volume = EI_INIT;
 static expert_field ei_xplane_ssnd_length = EI_INIT;
 
-// ---------- UCOC Declarations ---------- 
+// ---------- UCOC Declarations ----------
 static gint ett_xplane_ucoc = -1;
 
 static int hf_xplane_ucoc_header = -1;
@@ -476,7 +477,7 @@ static int hf_xplane_ucoc_id = -1;
 static expert_field ei_xplane_ucoc_length = EI_INIT;
 static expert_field ei_xplane_ucoc_id = EI_INIT;
 
-// ---------- USEL Declarations ---------- 
+// ---------- USEL Declarations ----------
 static gint ett_xplane_usel = -1;
 
 static int hf_xplane_usel_header = -1;
@@ -485,7 +486,7 @@ static int hf_xplane_usel_id = -1;
 static expert_field ei_xplane_usel_length = EI_INIT;
 static expert_field ei_xplane_usel_id = EI_INIT;
 
-// ---------- VEHX Declarations ---------- 
+// ---------- VEHX Declarations ----------
 #define xplane_VEHX_PACKET_LENGTH 45
 
 static gint ett_xplane_vehx = -1;
@@ -1795,8 +1796,8 @@ static int dissect_xplane_data(tvbuff_t* tvb, packet_info* pinfo, proto_tree* tr
 
         for (guint32 i = 0; i < recordCount; i++)
         {
-            gint32 index = tvb_get_gint32(tvb_content, xplane_DATA_STRUCT_LENGTH * i, ENC_LITTLE_ENDIAN);
-            if (index > xplane_MAX_DATA_INDEX)
+            int32_t index = tvb_get_int32(tvb_content, xplane_DATA_STRUCT_LENGTH * i, ENC_LITTLE_ENDIAN);
+            if (index >= xplane_MAX_DATA_INDEX)
             {
                 expert_add_info_format(pinfo, xplane_data_item, &ei_xplane_data_invalid_index, "Index %u is invalid. Expected value < %u", index, xplane_MAX_DATA_INDEX);
             }
@@ -2416,7 +2417,7 @@ static int dissect_xplane_rref_in(tvbuff_t* tvb, packet_info* pinfo, proto_tree*
 
     col_append_fstr(pinfo->cinfo, COL_INFO, " Id=%d, Freq=%d, RRef=%s", id, frequency, rref);
 
-    conversation_t* conv = conversation_new_by_id(pinfo->num, ENDPOINT_UDP, id, 0);
+    conversation_t* conv = conversation_new_by_id(pinfo->num, ENDPOINT_UDP, id);
     conversation_add_proto_data(conv, proto_xplane, (void*)rref);
 
     return tvb_captured_length(tvb);
@@ -2436,12 +2437,12 @@ static int dissect_xplane_rref_out(tvbuff_t* tvb, packet_info* pinfo, proto_tree
     tvbuff_t* tvb_content = tvb_new_subset_length(tvb, xplane_HEADER_LENGTH, -1);
     for (guint32 i = 0; i < recordCount; i++)
     {
-        gint32 id = tvb_get_gint32(tvb_content, 8 * i, ENC_LITTLE_ENDIAN);
+        int32_t id = tvb_get_int32(tvb_content, 8 * i, ENC_LITTLE_ENDIAN);
         proto_tree* xplane_content_tree = proto_tree_add_subtree_format(xplane_rref_tree, tvb_content, 8 * i, 8, ett_xplane_rref_out, NULL, "RREF Id: %d", id);
         proto_tree_add_item(xplane_content_tree, hf_xplane_rref_out_id, tvb_content, 8 * i, 4, ENC_LITTLE_ENDIAN);
         proto_tree_add_item(xplane_content_tree, hf_xplane_rref_out_value, tvb_content, (8 * i) + 4, 4, ENC_LITTLE_ENDIAN);
 
-        conversation_t* conv = find_conversation_by_id(pinfo->num, ENDPOINT_UDP, id, 0);
+        conversation_t* conv = find_conversation_by_id(pinfo->num, ENDPOINT_UDP, id);
         if (conv != NULL)
             proto_item_append_text(xplane_content_tree, " : %s", (gchar*)conversation_get_proto_data(conv, proto_xplane));
     }
